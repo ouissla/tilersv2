@@ -1,0 +1,36 @@
+<?php
+
+function trp_schema(){
+    
+    $schema['related_products'] = array(
+      'description' => t('TODO: please describe this table!'),
+      'fields' => array(
+        'nid' => array(
+          'description' => t('The id of the content'),
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'related_products' => array(
+          'description' => t('An array of ids related'),
+          'type' => 'text',
+          'not null' => TRUE,
+        ),
+      ),
+      'primary key' => array('nid'),
+    );
+
+    
+    return $schema;
+}
+
+function trp_install() {
+  // Create my tables.
+  drupal_install_schema('trp');
+}
+
+function trp_uninstall() {
+  // Drop my tables.
+  drupal_uninstall_schema('trp');
+}

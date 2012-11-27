@@ -1,0 +1,149 @@
+<?php
+// $Id: uc_price_per_role.install,v 1.5 2010/03/12 13:44:33 longwave Exp $
+
+/**
+ * Implementation of hook_install().
+ */
+function uc_price_per_role_install() {
+  drupal_install_schema('uc_price_per_role');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function uc_price_per_role_uninstall() {
+  drupal_uninstall_schema('uc_price_per_role');
+  variable_del('uc_price_per_role_enabled');
+  variable_del('uc_price_per_role_weights');
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function uc_price_per_role_schema() {
+  $schema = array();
+
+  $schema['uc_price_per_role_prices'] = array(
+    'description' => t('Ubercart price per role'),
+    'fields' => array(
+      'rpid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'vid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'rid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'price' => array(
+        'type' => 'numeric',
+        'precision' => 16,
+        'scale' => 5,
+        'not null' => TRUE,
+        'default' => 0.0,
+      ),
+    ),
+    'primary key' => array('rpid'),
+  );
+
+  $schema['uc_price_per_role_option_prices'] = array(
+    'description' => t('Ubercart price per role option prices'),
+    'fields' => array(
+      'opid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'oid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'rid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'price' => array(
+        'type' => 'numeric',
+        'precision' => 16,
+        'scale' => 5,
+        'not null' => TRUE,
+        'default' => 0.0,
+      ),
+    ),
+    'primary key' => array('opid'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Add attribute options price table, update price precision. 
+ */
+function uc_price_per_role_update_6000() {
+  $ret = array();
+
+  db_change_field($ret, 'uc_price_per_role_prices', 'price', 'price', array('type' => 'numeric', 'precision' => 16, 'scale' => 5, 'not null' => TRUE, 'default' => 0.0));
+  
+  db_create_table($ret, 'uc_price_per_role_option_prices', array(
+    'description' => t('Ubercart price per role option prices'),
+    'fields' => array(
+      'opid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'oid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'rid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'price' => array(
+        'type' => 'numeric',
+        'precision' => 16,
+        'scale' => 5,
+        'not null' => TRUE,
+        'default' => 0.0,
+      ),
+    ),
+    'primary key' => array('opid'),
+  ));
+
+  return $ret;
+}

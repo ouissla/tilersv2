@@ -1,0 +1,272 @@
+<?php
+
+function devmod_menu() {
+  $items = array();
+
+  $items['create_nodequeues'] = array(
+    'title' => 'Creation of the nodequeues',
+    'description' => 'Creation of nodequeues',
+    'page callback' => 'devmod_create_nodequeues',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['display_nodequeues'] = array(
+    'title' => 'Display nodequeues',
+    'description' => 'Display nodequeues',
+    'page callback' => 'devmod_display_nodequeues',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['set_subqueues'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'devmod_set_subnodequeues',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['resetpromote'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'resetpromote',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function resetpromote(){
+    $query = db_query('SELECT nid FROM uc_products');
+    $count = 1;
+    while ($data = db_fetch_object($query)){
+        $n = node_load($data->nid);  
+
+        foreach ($n->field_product_images as $key => $image){
+            $save = 0;
+            if ($image['filename'] == ''){
+                $n->field_product_images[$key]['filename'] = pathinfo($image['filepath'], PATHINFO_BASENAME);
+                $save = 1;
+            }
+
+            $new_filepath = 'sites/default/files/' . $image['filename'];
+            if (strpos($image['filepath'], 'files/products') !== FALSE){
+                $n->field_product_images[$key]['filepath'] = $new_filepath;
+                $save = 1;
+            }
+
+            if ($save){
+                node_save($n);
+            }
+        }
+
+        /*foreach ($n->field_product_images as $key => $image){
+
+            $new_filename = 'sites/default/files/products/' . $image['filename'];
+            
+
+            $n->field_product_images[$key]['filepath'] = $new_filename;
+        }
+        node_save($n); */
+
+        $count++;
+        if ($count > 50){
+            break;
+        }
+    }
+    return 'ok';
+}
+
+function devmod_set_subnodequeues(){
+
+    $sql = db_query('SELECT * FROM nodequeue_queue');
+    while ($data = db_fetch_object($sql)){
+        db_query('INSERT INTO nodequeue_subqueue (sqid, qid, reference, title) VALUES (%d, %d, %d, "%s")', $data->qid, $data->qid, $data->qid, $data->title);
+    }
+
+}
+
+function devmod_display_nodequeues(){
+    $sql = db_query('SELECT qid, title, name FROM nodequeue_queue');
+
+    $a = '';
+    while ($data = db_fetch_object($sql)){
+        $a .= $data->qid . ' - ' . $data->title . ' - ' . $data->name . '<br />';
+    }
+    print $a;
+}
+
+function devmod_create_nodequeues(){
+
+    $queues = array(
+    /*'Tools - Mixing Equipment' => 'tools_mixing_equipment',
+    'Tools - Measuring and Marking' => 'tools_measuring_marketing',
+    'Tools - Measuring and Marking - Spirit Levels' => 'spirit_levels',
+    'Tools - Measuring and Marking - Laser Levels' => 'laser_levels',
+    'Tools - Measuring and Marking - Squares / Templates' => 'square_templates',
+    'Tools - Measuring and Marking - Chalk and Ink Lines' => 'chalk_ink_lines',
+    'Tools - Measuring and Marking - Pencils and Markers' => 'pencils_markers',
+    'Tools - Tile Levelling Spacers and Wedges' => 'tile_levelling_spacers_wedges',
+    'Tools - Tile Levelling Spacers and Wedges - Tile Levelling Systems' => 'tile_levelling_systems',
+    'Tools - Tile Levelling Spacers and Wedges - Tile Spacers' => 'tile_spacers',
+    'Tools - Tile Levelling Spacers and Wedges - Tile Wedges' => 'tile_wedges',
+    'Tools - Diamond Cutting Grinding and Polishing' => 'diamond_cutting',
+    'Tools - Diamond Cutting Grinding and Polishing - Blades for Angle Grinders' => 'blades_angle_grinders',
+    'Tools - Diamond Cutting Grinding and Polishing - Blades for Tile Cutting Machines' => 'blades_tile_cutting_machines',
+    'Tools - Diamond Cutting Grinding and Polishing - Grinding Cups' => 'grinding_cups',
+    'Tools - Diamond Cutting Grinding and Polishing - Stone and Tile Polishing' => 'stone_tile_polishing',
+    'Tools - Hole Cutting Equipment' => 'hole_cutting_equipment',
+    'Tools - Hole Cutting Equipment - Stone and Porcelain Cutting' => 'stone_porcelain_cutting',
+    'Tools - Hole Cutting Equipment - Ceramic and Soft Material Cutting' => 'ceramic_soft_material_cutting',
+    'Tools - Grouting and Cleaning Equipment' => 'grouting_cleaning_equipment',
+    'Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems' => 'grout_cleanup_systems',
+    'Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems - Replacement Sponges and Accessories' => 'replace_sponges_accessories',
+    'Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems - Scourers and Scrubbers' => 'scourers_scrubbers',
+    'Tools - Grouting and Cleaning Equipment - Buckets' => 'buckets',
+    'Tools - Grouting and Cleaning Equipment - Grout Removal Tools' => 'grout_removal_tools',
+    'Tools - Trowels and Spreaders' => 'trowels_spreaders',
+    'Tools - Trowels and Spreaders - Notched Trowels' => 'notched_trowels',
+    'Tools - Trowels and Spreaders - Rendering Trowels' => 'rendering_trowels',
+    'Tools - Trowels and Spreaders - Floats' => 'floats',
+    'Tools - Trowels and Spreaders - Scrapers' => 'scrapers',
+    'Tools - Trowels and Spreaders - Gauging and Margin Trowels' => 'gauging_margin_trowels'
+        ); */
+
+
+
+       'Tools - General Tools' => 'tools_general_tools',
+    'Tools - General Tools - Tile Nippers' => 'tools_tile_nippers',
+    'Tools - General Tools - Hacksaw, Hebel Saws' => 'tools_hacksaw_hebel_saws',
+    'Tools - General Tools - Mallets and Hammers' => 'tools_mallets_hammers',
+    'Tools - General Tools - Chisels' => 'tools_chisels',
+    'Tools - General Tools - Suction Caps' => 'tools_suction_caps',
+    'Tools - General Tools - Knives and Blades' => 'tools_knives_blades',
+    'Tools - General Tools - Knee Pads and Safety Equipment' => 'tools_knee_pads_safety_equipment',
+    'Tools - General Tools - Tool Storage' => 'tool_storage',
+    'Tiling Trims - Angles' => 'angles',
+    'Tiling Trims - Angles - Angles Aluminium' => 'angles_aluminium',
+    'Tiling Trims - Angles - Angles Brass' => 'angles_brass',
+    'Tiling Trims - Angles - Angles Stainless Steel' => 'angles_stainless_steel',
+    'Tiling Trims - Angles - Angles PVC' => 'angles_pvc',
+    'Tiling Trims - Angles - Angles Notched' => 'angles_notched',
+    'Tiling Trims - Half Round Trim' => 'half_round_trim',
+    'Tiling Trims - Half Rounf Trim  - Aluminium' => 'half_round_trim_aluminium',
+    'Tiling Trims - Half Rounf Trim  - Brass' => 'half_round_trim_brass',
+    'Tiling Trims - Half Rounf Trim  - Stainless Steel' => 'half_round_trim_stainless_steel',
+    'Tiling Trims - Half Rounf Trim  - PVC' => 'hhalf_round_trim_pvc',
+    'Tiling Trims - Diminishing Trim' => 'diminishing_trim',
+    'Tiling Trims - Diminishing Trim - Aluminium' => 'diminishing_trim_alu',
+    'Tiling Trims - Diminishing Trim - Brass' => 'diminishing_trim_brass',
+    'Tiling Trims - Corner Trims' => 'corner_trims',
+    'Tiling Trims - Corner Trims - Internal' => 'corner_trims_internal',
+    'Tiling Trims - Corner Trims - External' => 'corner_trims_external',
+    'Tiling Trims - Corner Trims - Unicorn' => 'corner_trims_unicorn',
+    'Tiling Trims - Corner Angles and Guards' => 'corner_angles_guards',
+    'Tiling Trims - Corner Angles and Guards - Mosaic Angle' => 'corner_angles_guards_mosaic_angle',
+    'Tiling Trims - Corner Angles and Guards - Mosaic Guard' => 'corner_angles_guards_mosaic_guard',
+    'Tiling Trims - Corner Angles and Guards - Decorative Y Section' => 'corner_angles_guards_deco',
+    'Tiling Trims - Decorative Border Trim' => 'deco_border_trim',
+    'Tiling Trims - Decorative Border Trim - Border Trim' => 'deco_border_trim_border',
+    'Tiling Trims - Decorative Border Trim - Listello Trim' => 'deco_border_trim_listello',
+    'Tiling Trims - Decorative Border Trim - Decor Trim' => 'deco_border_trim_decor',
+    'Tiling Trims - Splash Trim' => 'splash_trim',
+    'Tiling Trims - Stair Nosing' => 'stair_nosing',
+    'Tiling Trims - Top Trim' => 'top_trim',
+    'Tiling Trims - Cove Trim' => 'cove_trim',
+    'Tiling Trims - Cove Trim - Tile In Cove Trim' => 'tile_in_cove_trim',
+    'Tiling Trims - Cove Trim - Retrofit Cove Trim' => 'retrofit_cove_trim',
+    'Tiling Trims - Cove Trim - Combination Tile in Trim' => 'combination_tile_in_trim',
+    'Tiling Trims - Cove Trim - Thin Bed Expansion Joints' => 'thin_bed_exp_joints',
+    'Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Aluminium' => 'thin_bed_exp_joints_alu',
+    'Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Brass' => 'thin_bed_exp_joints_brass',
+    'Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Stainless Steel' => 'thin_bed_exp_joints_stainless_steel',
+    'Tiling Trims - Cove Trim - Thick Expansion Joints' => 'thick_bed_martarloc_exp_joints',
+    'Tiling Trims - Cove Trim - Thick Expansion Joints - Alu' => 'thick_bed_martarloc_exp_joints_alu',
+    'Tiling Trims - Cove Trim - Thick Expansion Joints - Brass' => 'thick_bed_martarloc_exp_joints_brass',
+    'TT - Cove Trim - Thick Expansion Joints - Stainless steel' => 'thick_bed_martarloc_exp_joints_stainless_steel',
+    'Floor Grates - Linear Floor Grates' => 'linear_floor_grates',
+    'Floor Grates - Linear Floor Grates - Tile Insert' => 'linear_floor_grates_tile_insert',
+    'Floor Grates - Linear Floor Grates - Perforated' => 'linear_floor_grates_perforated',
+    'Floor Grates - Linear Floor Grates - Heel Guard' => 'linear_floor_grates_heel_guard',
+    'Floor Grates - Floor Grates' => 'floor_grates',
+    'Floor Grates - Floor Grates - Tile Insert' => 'floor_grates_tile_insert',
+    'Floor Grates - Floor Grates - Square Grates' => 'floor_grates_square_grates',
+    'Floor Grates - Floor Grates - Round Grates' => 'floor_grates_round_grates',
+    'Sound Insulation Systems' => 'sound_insulation_systems',
+    'Sound Insulation Systems  - Tile Over' => 'sis_tile_over',
+    'Sound Insulation Systems  - Timber Floors' => 'sis_timber_floors',
+    'Sound Insulation Systems  - Screed Over' => 'sis_screed_over',
+    'Sound Insulation Systems  - Adhesive Systems' => 'sis_adhesive_systems',
+    'Maxisil Silicones' => 'maxisil_silicones',
+    'Maxisil Silicones Ceramic' => 'maxisil_silicones_ceramic',
+    'Maxisil Silicones Natural Stone' => 'maxisil_silicones_natural_stone',
+    'Maxisil Silicones Cleaner and Primers' => 'maxisil_silicones_cleaner_primers',
+    'Mapei Silicones' => 'mapei_silicones',
+    'Polyurethane' => 'polyurethane',
+    'Polyurethane Sealants' => 'polyurethane_sealants',
+    'Polyurethane Adhesive and Sealant' => 'polyurethane_adhesive_sealant',
+    'Waterproofing Membranes' => 'waterproofing_membranes',
+    'Waterproofing Membranes - Water based' => 'waterproof_membranes_water_based',
+    'Waterproofing Membranes - Solvent based' => 'waterproofing_membranes_solvent_based',
+    'Waterproofing Membranes - Bandage and Accessories' => 'waterproofing_membranes_bandage_accessories',
+    'Adhesives - Mapei' => 'adhesives_mapei',
+    'Adhesives - Mapei - Powder Adhesives' => 'adhesives_mapei_powder',
+    'Adhesives - Mapei - Paste Adhesives' => 'adhesives_mapei_paste',
+    'Adhesives - Mapei - Levelling Compounds' => 'adhesives_mapei_levelling_compounds',
+    'Adhesives - Mapei - Speciality Products' => 'adhesives_mapei_speciality_products',
+    'Adhesives - Mapei - Grouts' => 'adhesives_mapei_grouts',
+    'Adhesives - Mapei - Additives' => 'adhesives_mapei_additives',
+    'Adhesives - CTA' => 'adhesives_cta',
+    'Adhesives - CTA - Powder Adhesives' => 'adhesives_cta_powder',
+    'Adhesives - CTA - Paste Adhesives' => 'adhesives_cta_adhesives',
+    'Adhesives - CTA - Grouts' => 'adhesives_cta_grouts',
+    'Adhesives - CTA - Additives' => 'adhesives_cta_additives',
+    'Adhesives - Laticrete' => 'adhesives_laticrete',
+    'Adhesives - Laticrete - Powder Adhesives' => 'adhesives_laticrete_powder',
+    'Adhesives - Laticrete - Paste Adhesives' => 'adhesives_laticrete_paste',
+    'Adhesives - Laticrete - Grouts' => 'adhesives_laticrete_grouts',
+    'Adhesives - Laticrete - Additives' => 'adhesives_laticrete_additives',
+    'Adhesives - Construction Chemicals' => 'adhesives_construction_chemicals',
+    'Adhesives - Construction Chemicals - Grouts' => 'adhesives_construction_chemicals_grouts',
+    'Adhesives - Construction Chemicals - Additives' => 'adhesives_construction_chemicals_add',
+    'Tile Cleaners' => 'tile_cleaners',
+    'Tile Cleaners - Tile' => 'tile_cleaners_tile',
+    'Tile Cleaners - Stone Cleaners' => 'tile_cleaners_stone',
+    'Tile Sealers' => 'tile_sealers',
+    'Tile Sealers - Penetrating' => 'tile_sealers_penetrating',
+    'Tile Sealers - Semi-gloss Colour Enhancers' => 'tile_sealers_semigloss',
+    'Tile Sealers - Gloss' => 'tile_sealers_gloss',
+    'Concrete Sealers' => 'concrete_sealers',
+    'Cleaning and Sealing Accessories' => 'cleaning_sealing_accessories',
+    );
+
+    foreach ($queues as $key => $value){
+      $nodequeue = new stdClass;
+      $nodequeue->api_version = 2;
+      $nodequeue->name = $value;
+      $nodequeue->title = $key;
+      $nodequeue->subqueue_title = '';
+      $nodequeue->size = 0;
+      $nodequeue->link = 'Add to queue';
+      $nodequeue->link_remove = 'Remove from queue';
+      $nodequeue->owner = 'nodequeue';
+      $nodequeue->show_in_ui = 1;
+      $nodequeue->show_in_tab = 1;
+      $nodequeue->show_in_links = 1;
+      $nodequeue->reference = '0';
+      $nodequeue->reverse = 1;
+      $nodequeue->i18n = 0;
+      $nodequeue->roles = array();
+      $nodequeue->types = array(
+        0 => 'product'
+      );
+      $nodequeue->add_subqueue = array(
+        1 => 'Recommended content',
+      );
+
+      nodequeue_save($nodequeue);
+    }
+
+}

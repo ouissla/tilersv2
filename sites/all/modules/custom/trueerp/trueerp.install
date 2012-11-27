@@ -1,0 +1,48 @@
+<?php
+
+/**
+ *
+ */
+function trueerp_schema() {
+  $schema['tilers_erp_products'] = array(
+    'description' => t('Store ERP ID and update date'),
+    'fields' => array(
+      'sku' => array(
+        'description' => t('The sku of the product'),
+        'type' => 'varchar',
+        'length' => '256',
+        'not null' => TRUE,
+      ),
+      'erpid' => array(
+        'description' => t('The ERP ID of the product'),
+        'type' => 'varchar',
+        'length' => '256',
+        'not null' => TRUE,
+      ),
+      'oid' => array(
+        'description' => t('The option ID of the variation'),
+        'type' => 'int',
+      ),
+      'updated' => array(
+        'description' => t('Last update date'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'unique keys' => array(
+      'sku' => array('sku')
+    ),
+  );
+
+
+  return $schema;
+}
+
+
+/**
+ * Implementation of hook_install().
+ *
+ */
+function trueerp_install() {
+   drupal_install_schema('trueerp');
+}

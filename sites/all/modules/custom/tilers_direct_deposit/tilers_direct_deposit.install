@@ -1,0 +1,48 @@
+<?php
+// $Id$
+
+function tilers_direct_deposit_schema() {
+  $schema = array();
+
+  $schema['tilers_payment_directdeposit'] = array(
+    'fields' => array(
+      'directdeposit_id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'order_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'clear_date' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'order_id' => array('order_id'),
+    ),
+    'primary key' => array('directdeposit_id'),
+  );
+
+  return $schema;
+}
+
+function tilers_direct_deposit_install() {
+  drupal_install_schema('tilers_direct_deposit');
+}
+
+function tilers_direct_deposit_uninstall() {
+  drupal_uninstall_schema('tilers_direct_deposit');
+
+  variable_del('tilers_directdeposit_account_name');
+  variable_del('tilers_directdeposit_account_bsb');
+  variable_del('tilers_directdeposit_account_number');
+  variable_del('tilers_directdeposit_mailing_street2');
+  variable_del('tilers_directdeposit_account_bank');
+  variable_del('tilers_directdeposit_policy');
+}

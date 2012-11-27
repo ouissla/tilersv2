@@ -1,0 +1,413 @@
+<?php
+/**
+ * The Ubercart Price List module.
+ * Developement by Travis Tidwell | travist@alethia-inc.com
+ * 
+ * Alethia Inc.
+ * www.alethia-inc.com
+ * What can Alethia Inc. build for you?
+ */
+
+define('PRICELIST_NAME_MAX_LENGTH', 20);
+
+/**
+ * Parse CSV from string
+ */
+function uc_pricelist_parse_csv( $content, $delimiter = ",", $enclosure = '"' ) {
+  $data = array();
+  $content = str_replace( "\r\n", "\n", $content );
+  $content = str_replace( "\r", "\n", $content );
+  if ( $content[strlen($content)-1] != "\n" ) {
+    $content .= "\n";
+  }
+
+  // Parse the content character by character
+  $row = array("");
+  $idx = 0;
+  $quoted = false;
+  for ( $i = 0; $i < strlen($content); $i++ ) {
+    $ch = $content[$i];
+    if ( $ch == $enclosure ) {
+      $quoted = !$quoted;
+    }
+
+    // End of line
+    if ( $ch == "\n" && !$quoted ) {
+      // Remove enclosure delimiters
+      for ( $k = 0; $k < count($row); $k++ ) {
+        if ( $row[$k] != "" && $row[$k][0] == $enclosure ) {
+          $row[$k] = substr( $row[$k], 1, strlen($row[$k]) - 2 );
+        }
+        $row[$k] = trim(str_replace( str_repeat($enclosure, 2), $enclosure, $row[$k] ));
+      }
+
+      // Append row into table
+      $data[] = $row;
+      $row = array( "" );
+      $idx = 0;
+    }
+
+    // End of field
+    else if ( $ch == $delimiter && !$quoted ) {
+      $row[++$idx] = "";
+    }
+
+    // Inside the field
+    else {
+      $row[$idx] .= $ch;
+    }
+  }
+
+  return $data;
+}
+
+/**
+ * Get this users price lists.
+ */
+function uc_pricelist_get_user_lists() {
+  global $user;
+  $pricelists = array();
+
+  // Get all of the pricelists for each role.
+  $pricelist_roles = variable_get('uc_pricelist_role', array());
+
+  // Iterate through all of the users roles.
+  foreach( $user->roles as $rid => $role ) {
+
+    // If there is a pricelist for this role.
+    if( isset($pricelist_roles[$rid]) ) {
+
+      // Add this pricelist for this user.
+      $pricelists[] = uc_pricelist_full_load($pricelist_roles[$rid]);
+    }
+  }
+
+  // Check to see if there is a user price list.
+  $userlist = variable_get('uc_pricelist_user_' . $user->uid, 0);
+  if( $userlist ) {
+
+    // Add this pricelist for this user.
+    $pricelists[] = uc_pricelist_full_load($userlist);
+  }
+
+  // Return the pricelists.
+  return $pricelists;
+}
+
+/**
+ * Get a price list provided a single SKU list and the original price and quantity.
+ */
+function uc_pricelist_get_price( $list, $price, $qty ) {
+  $prevnum = 1;
+
+  // Iterate through all of the prices in the pricelist row.
+  foreach( $list as $num => $value ) {
+
+    // If we are within our value range, then break out...
+    if( $qty >= $prevnum && $qty < $num ) {
+      break;
+    }
+
+    // Set the price and previous value number.
+    $price = $value;
+    $prevnum = $num;
+  }
+
+  // Return our new price.
+  return $price;
+}
+
+/**
+ * Returns the SKU combinations as key-value pairs.
+ */
+function uc_pricelist_get_combinations() {
+  $combine = array();
+  $combine_csv = uc_pricelist_parse_csv(variable_get('pricelist_combine', ''));
+  foreach( $combine_csv as $index => $row ) {
+    foreach( $row as $column ) {
+      $combine[$column] = is_array($combine[$column]) ? array_unique(array_merge( $combine[$column], $row )) : $row;
+    }
+  }
+  return $combine;
+}
+
+/**
+ * Returns an array of quantities for each items that have been combined.
+ */
+function uc_pricelist_get_quantities( $sku_items ) {
+  // Get the combinations.
+  $combine = uc_pricelist_get_combinations();
+
+  // Our quantities array.
+  $quantities = array();
+  foreach( $sku_items as $sku => $sku_item ) {
+    if( isset($combine[$sku]) ) {
+      foreach( $combine[$sku] as $combine_sku ) {
+        if( isset( $sku_items[$combine_sku]) && ($combine_sku != $sku) ) {
+          // Add this quantity.
+          $quantities[$sku][$combine_sku] = $sku_items[$combine_sku]['item']->qty;
+        }
+      }
+    }
+  }
+
+  return $quantities;
+}
+
+/**
+ * Converts a standard items array into a key-value pair based on the SKU.
+ * This makes the code much simpler when applying complex pricing based on
+ * combined quantities.
+ */
+function uc_pricelist_get_sku_items( $items ) {
+  $sku_items = array();
+  foreach( $items as $index => $item ) {
+    $sku_items[$item->model] = array(
+      'index' => $index,
+      'item' => $item
+    );
+  }
+  return $sku_items;
+}
+
+/**
+ * Implements uc_cart_alter.
+ */
+function uc_pricelist_uc_cart_alter( &$items ) {
+  // Get this users price list.
+  if( $pricelists = uc_pricelist_get_user_lists() ) {
+
+    // Translate the items to key-value pairs.
+    $sku_items = uc_pricelist_get_sku_items( $items );
+
+    // Get our quantities for this shopping cart.
+    $quantities = uc_pricelist_get_quantities( $sku_items );
+
+    // Iterate through our items again now that we know the quantities.
+    foreach( $sku_items as $sku => $sku_item ) {
+      // Iterate through all of this users pricelists.
+      foreach( $pricelists as $pricelist ) {
+        // Check to see if this model is included in the price list.
+        if( isset($pricelist['pricelist'][$sku]) ) {
+          // Get the cart item.
+          $item = $sku_item['item'];
+          $index = $sku_item['index'];
+
+          // Get the quantity based on this quantity, plus the quantity of whatever items can be combined.
+          $quantity = $item->qty;
+          if( count($quantities) && count($quantities[$sku]) ) {
+            foreach( $quantities[$sku] as $qty ) {
+              $quantity += $qty;
+            }
+          }
+
+          // Now alter the price based on quantity.
+          $items[$index]->price = uc_pricelist_get_price( $pricelist['pricelist'][$item->model], $item->price, $quantity );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_perm().
+ */
+function uc_pricelist_perm() {
+  return array('administer price lists');
+}
+
+/**
+ * Implementation of hook_theme
+ */
+function uc_pricelist_theme() {
+  return array(
+    'pricelist_overview' => array(
+      'arguments' => array('form' => NULL),
+      'file' => 'uc_pricelist.admin.inc',
+    )
+  );
+}
+
+/**
+ * Implement hook_menu
+ */
+function uc_pricelist_menu() {
+  $items = array();
+  $items['admin/store/pricelists'] = array(
+    'title' => t('Price Lists'),
+    'description' => 'Manage the Price Lists.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pricelist_overview'),
+    'access arguments' => array('administer price lists'),
+    'file' => 'uc_pricelist.admin.inc'
+  );
+  $items['admin/store/pricelists/list'] = array(
+    'title' => t('List'),
+    'access arguments' => array('administer price lists'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['admin/store/pricelists/add'] = array(
+    'title' => t('Add Price List'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pricelist_form'),
+    'access arguments' => array('administer price lists'),
+    'file' => 'uc_pricelist.admin.inc',
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/store/pricelists/manage/%uc_pricelist_full'] = array(
+    'title' => t('View Price List'),
+    'page callback' => 'uc_pricelist_view',
+    'page arguments' => array(4),
+    'access arguments' => array('administer price lists'),
+    'file' => 'uc_pricelist.admin.inc'
+  );
+  $items['admin/store/pricelists/manage/%uc_pricelist/view'] = array(
+    'title' => t('View'),
+    'access arguments' => array('administer price lists'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['admin/store/pricelists/manage/%uc_pricelist/edit'] = array(
+    'title' => t('Edit'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pricelist_form', 4),
+    'access arguments' => array('administer price lists'),
+    'file' => 'uc_pricelist.admin.inc',
+    'type' => MENU_LOCAL_TASK
+  );
+  $items['admin/store/pricelists/manage/%uc_pricelist/delete'] = array(
+    'title' => t('Delete'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pricelist_delete_confirm', 4),
+    'access arguments' => array('administer price lists'),
+    'file' => 'uc_pricelist.admin.inc',
+    'type' => MENU_CALLBACK
+  );
+  return $items;
+}
+
+/**
+ * Get all of the price lists.
+ */
+function uc_pricelist_get_pricelists() {
+  $pricelists = array();
+  $result = db_query("SELECT * FROM {variable} WHERE name LIKE 'uc_pricelists_%'");
+  while( $pricelist = db_fetch_object($result) ) {
+    $name = substr($pricelist->name, 14);
+    $pricelists[$name] = $pricelist->value;
+  }
+  return $pricelists;
+}
+
+/**
+ * Load a price list.
+ */
+function uc_pricelist_load( $name = NULL ) {
+  $pricelist = array();
+  if( $name ) {
+    $pricelist['name'] = $name;
+    $pricelist['pricelist'] = variable_get('uc_pricelists_' . $name, '');
+  }
+  return $pricelist;
+}
+
+/**
+ * Check to see if a name already exists with this pricelist.
+ */
+function uc_pricelist_name_exists( $name = NULL ) {
+  return (bool)db_result( db_query("SELECT COUNT(*) FROM {variable} WHERE name='uc_pricelists_%s'", $name) );
+}
+
+/**
+ * Full load of the price list.
+ */
+function uc_pricelist_full_load( $name = NULL ) {
+
+  // Load the basic pricelist.
+  $pricelist = uc_pricelist_load( $name );
+
+  // Now break out the CVS into its own array.
+  $csv_array = uc_pricelist_parse_csv($pricelist['pricelist']);
+  $list = array();
+  $header = array();
+
+  // Now normalize this array for us.
+  foreach( $csv_array as $i => $row ) {
+
+    // The first row should be the header.
+    if( $i == 0 ) {
+      $header = $row;
+    }
+    else {
+      // Get the items from the first column.
+      $items = explode('|', $row[0]);
+      
+      // Iterate through all the columns in this row...
+      foreach( $row as $j => $column ) {
+        if( $j > 0 ) {
+          // Iterate through items.
+          foreach( $items as $item ) {
+            // Add this row in our list.
+            $list[$item][intval($header[$j])] = $column;
+          }
+        }
+      }
+    }
+  }
+
+  // Set the pricelist.
+  $pricelist['pricelist'] = $list;
+
+  // Return the pricelist.
+  return $pricelist;
+}
+
+/**
+ * Delete a price list
+ */
+function uc_pricelist_delete( $name = NULL ) {
+  variable_del( 'uc_pricelists_' . $name );
+}
+
+/**
+ * Alter the user form and add the price list selection.
+ */
+function uc_pricelist_form_user_profile_form_alter( &$form, &$form_state ) {
+  // Make sure this user can administer the pricelists.
+  if( user_access('administer price lists') ) {
+
+    // Get all of the pricelists.
+    $pricelists = uc_pricelist_get_pricelists();
+
+    // Setup the options.
+    $options = array(0 => 'Default');
+    foreach( $pricelists as $name => $pricelist ) {
+      $options[$name] = $name;
+    }
+
+    // Need to add the user assignments for the price lists.
+    $form['pricelist'] = array(
+      '#type' => 'select',
+      '#options' => $options,
+      '#title' => t('Price List Assignment'),
+      '#description' => t('You can individually assign price lists to individual users. If this is not set, then the default user role assignment will be used.'),
+      '#default_value' => variable_get('uc_pricelist_user_' . $form['#uid'], 0)
+    );
+
+    // Add our sumbit handler in with the user edit submit.
+    $form['#submit'][] = 'uc_pricelist_user_form_submit';
+  }
+}
+
+/**
+ * Handle the user form submits.
+ */
+function uc_pricelist_user_form_submit( $form, &$form_state ) {
+  // Save the user assignment.
+  if( $form_state['values']['pricelist'] ) {
+
+    // Set the variable for this user.
+    variable_set('uc_pricelist_user_' . $form['#uid'], $form_state['values']['pricelist']);
+  }
+}

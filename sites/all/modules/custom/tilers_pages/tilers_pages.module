@@ -1,0 +1,571 @@
+<?php
+
+/*
+ * Hook_block to create a menu block
+ */
+function tilers_pages_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks[0] = array(
+      'info' => t('Main vertical menu'),
+      'weight' => 0,
+      'status' => 1,
+      'region' => 'sidebar_first',
+    );
+
+    return $blocks;
+  }
+  else if ($op == 'view') {
+    switch ($delta) {
+      case 0:
+        // Your module will need to define this function to render the block.
+        $block = array(
+          'subject' => "",
+          'content' => acquia_prosper_display_menu(),
+        );
+        break;
+    }
+    return $block;
+  }
+}
+
+function tilers_pages_link_alter(&$links, $node, $comment = NULL) {
+    if (isset($links['blog_usernames_blog'])){
+        unset($links['blog_usernames_blog']);
+    }
+}
+
+function tilers_pages_menu_alter(&$items) {
+  // Example - disable the page at node/add
+  $items['node/%node/nodequeue']['type'] = MENU_CALLBACK;
+}
+
+// Hook_init implementation
+// Disable the "password strength verification
+function tilers_pages_init() {
+  // If the user is currently on a user/* page or the admin/user/user page, insert the JS.
+  if (arg(0) === 'signin' || arg(0) === 'user' || (arg(0) === 'admin' && arg(1) === 'user' && arg(2) === 'user' )) {
+    drupal_add_js('Drupal.behaviors.password = function () {};', 'inline', 'footer');
+  }
+}
+
+// Hook_menu implementation
+function tilers_pages_menu(){
+    $items = array();
+
+    /*$items['contact'] = array(
+        'title' => 'Contact',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('cosmic_contact_form'),
+        'access arguments' => array('access content'),
+        'type' => MENU_CALLBACK,
+    );*/
+    $items['signin'] = array(
+       'title'           => 'Sign in',
+       'page callback'   => 'tilers_signin',
+       'access callback' => TRUE,
+       'type'            => MENU_CALLBACK,
+    );
+    $items['admin/content/homepage'] = array(
+       'title'           => 'Edit the homepage',
+       'page callback'   => 'tilers_edit_homepage',
+       'access callback' => TRUE,
+       'type'            => MENU_NORMAL_ITEM,
+    );
+    $items['brands'] = array(
+       'title'           => 'Brands',
+       'page callback'   => 'tilers_brands',
+       'access callback' => TRUE,
+       'type'            => MENU_CALLBACK,
+    );
+
+    return $items;
+}
+
+/**
+ * Hook_theme implementation
+ **/
+function tilers_pages_theme($existing, $type, $theme, $path) {
+  return array(
+    'tilers_signin_page' => array(
+      'arguments' => array('form' => NULL),
+      'template' => 'tilers-signin', // this is the name of the template
+    ),
+    'tilers_brands' => array(
+      'arguments' => array('vocabulary' => NULL),
+      'template' => 'tilers-brands', // this is the name of the template
+    ),
+    'form_payment' => array(
+        'arguments' => array(),
+    )
+  );
+}
+
+function tilers_pages_form_alter(&$form, &$form_state, $form_id){
+
+if ($form_id == 'uc_cart_view_form'){
+    //$form['items'][1]['qty']['#default_value'] = 0;
+    //$form['items'][1]['#float'] = 1;
+}
+
+    if ($form_id == 'user_register'){
+        $form['account']['name']['#description'] = '';
+        $form['account']['mail']['#description'] = '';
+        $form['account']['mail']['#attributes'] = array('class' => 'email');
+        $form['account']['conf_mail']['#description'] = '';
+        $form['account']['conf_mail']['#attributes'] = array('class' => 'email');
+        $form['account']['pass']['#description'] = '';
+        $form['account']['pass']['#attributes'] = array('minlength' => 5);
+        $form['#submit'][] = 'tilers_pages_user_register_submit';
+    }
+    if ($form_id == "views_exposed_form"){
+        $form['#info']['filter-keys']['label'] = "";
+        $form['submit']['#value'] = "GO";
+    }
+    if ($form_id == "user_filter_form"){
+        $form['filters']['status']['role']['#options'][2] = 'authenticated user';
+    }
+    if ($form_id == 'search_block_form') {
+      $form['search_block_form']['#title'] = 'SEARCH';
+    }
+}
+
+function tilers_pages_user_login_submit($form, &$form_state) {
+  global $user;
+  if ($user->uid) {
+
+    if (isset($_SESSION['login_referer']) && strpos($_SESSION['login_referer'], 'cart') !== FALSE){
+        unset($_SESSION['login_referer']);
+        $form_state['redirect'] = 'cart';
+    } else {
+        $form_state['redirect'] = 'node';
+    }
+    return;
+  }
+}
+
+function tilers_pages_user_register_submit($form, &$form_state){
+
+    /*$new_customer = array(
+        'name' => $form_state['values']['profile_firstname'] . ' ' . $form_state['values']['profile_lastname'],
+        'title' => 'Mr',
+        'firstname' => $form_state['values']['profile_firstname'],
+        'lastname' => $form_state['values']['profile_lastname'],
+        'street1' => $form_state['values']['profile_street1'],
+        'street2' => $form_state['values']['profile_street2'],
+        'street3' => $form_state['values']['profile_street3'],
+        'suburb' => $form_state['values']['profile_suburb'],
+        'postcode' => $form_state['values']['profile_postcode'],
+        'state' => $form_state['values']['profile_state'],
+        'phone' => $form_state['values']['profile_phone'],
+        'fax' => $form_state['values']['profile_fax'],
+        'email' => $form_state['values']['mail'],
+        'mobile' => $form_state['values']['profile_mobile']
+    );
+    
+    $json_user = trueerp_customer_json($new_customer, 1);
+    
+	$result = trueerp_set('erpapi/TCustomer', $json_user);
+    */
+}
+
+/**
+ * Contact form declaration
+ **/
+/*function tilers_contact_form(){
+    $form = array();
+
+    $form['#prefix'] = '<strong>Cosmic Clothing Pty Ltd</strong>
+
+<p>Unit 7, 181 Taren Point Rd<br />
+Taren Point 2229<br />
+AUSTRALIA</p>
+
+<p>Tel: +61 2 9531 2944     Australia: 1300 ALL MATERNITY | 1300 255 628    Mon-Fri 9am-5pm<br />
+Fax: +61 2 9531 2955</p>
+
+<p>Email: info@maternitywear.com.au</p>
+    ';
+
+    $form['name'] = array(
+        '#title' => "Your name",
+        '#type' => 'textfield',
+        '#size'		=> 60,
+        '#required' => TRUE
+    );
+
+    $form['email'] = array(
+        '#title' 	=> "Your email address",
+        '#type' 	=> 'textfield',
+        '#size'		=> 60,
+        '#required' => TRUE
+    );
+
+    $form['subject'] = array(
+        '#title' 	=> "Subject",
+        '#type' 	=> 'textfield',
+        '#size'		=> 60,
+        '#required' => TRUE
+    );
+
+    $form['category'] = array(
+        '#title' 	=> "Category",
+        '#type' 	=> 'select',
+        '#options'  => array(
+            'Contact us' => 'Contact us',
+            'General information' => 'General information',
+            'Sales infos' => 'Sales infos'
+        ),
+        '#required' => TRUE,
+        '#default_value' => 4
+    );
+
+    $form['message'] = array(
+        '#title' => "Your message",
+        '#type' => 'textarea',
+        '#required' => TRUE
+    );
+
+    $form['copy'] = array(
+        '#title' => "Send yourself a copy.",
+        '#type' => 'checkbox',
+        '#default_value' => FALSE
+    );
+
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => 'Send',
+    );
+
+    return $form;
+} */
+
+/*
+function tilers_contact_form_submit($form, &$form_state) {
+
+    // Subject
+    $subject = $form_state['values']['category'] . ' - ' .$form_state['values']['subject'];
+
+    // Message
+    $msg = $form_state['values']['message'];
+
+    $to = ($form_state['values']['copy'] == 1) ? 'info@maternitywear.com.au,' . $form_state['values']['email'] : 'info@maternitywear.com.au' ;
+
+    // Headers
+    $headers = 'From: ' . $form_state['values']['email'] . "\r\n";
+    $headers .= 'Sender: ' . $form_state['values']['email'] . ' <' . $form_state['values']['email'] . '>'."\r\n";
+    $headers .= "\r\n";
+
+    // Function mail()
+    mail($to, $subject, $msg, $headers);
+
+    drupal_set_message('Your messages has been sent.');
+}
+*/
+
+function tilers_pages_user($op, &$edit, &$account, $category = NULL){
+    global $user;
+    switch ($op){
+        case 'logout':
+            uc_cart_empty(uc_cart_get_id());
+        break;
+    }
+}
+
+
+function tilers_signin(){
+    return theme('tilers_signin_page');
+}
+
+function tilers_edit_homepage(){
+    $sql = db_query('SELECT nid FROM {node} WHERE type = "%s" ORDER BY nid ASC LIMIT 1', "homepage");
+    $nid = db_fetch_object($sql);
+    if (is_object($nid)){
+        drupal_goto('node/' . $nid->nid . '/edit');
+    }
+    return;
+}
+
+/*
+ * Display a list of brands available on the site
+ */
+function tilers_brands(){
+    $vocabulary = taxonomy_get_tree(9);
+
+    foreach ($vocabulary as $voca){
+        if ($voca->parents[0] != 0 && isset($terms[$voca->parents[0]])){
+            $terms[$voca->parents[0]]['below'][] = array('tid' => $voca->tid, 'name' => $voca->name);
+        } else {
+            $terms[$voca->tid] = array('name' => $voca->name);
+        }
+    }
+
+    $tree = array(1 => array(), 2 => array(), 3 => array());
+    $count = 1;
+    foreach ($terms as $cat){
+        $tree[$count][] = $cat;
+        $count++;
+        if ($count == 4){
+            $count = 1;
+        }
+    }
+
+    return theme('tilers_brands', $tree);
+}
+
+/*
+ * Hook mail
+ */
+function tilers_page_mail($key, &$message, $params) {
+    switch($key) {
+      case 'contact':
+        $message['subject'] = t('A customer has a question!');
+        $message['body'][] = $params['message_body'];
+      break;
+    }
+  }
+
+/*
+ * Contact form
+ */
+function tiler_contact(){
+    $form = array();
+    
+    $form['firstname'] = array(
+        '#title' => "Given Name",
+        '#type' => "textfield",
+        '#required' => true,
+        '#size' => 20
+    );
+    
+    $form['lastname'] = array(
+        '#title' => "Surname",
+        '#type' => "textfield",
+        '#required' => true,
+        '#size' => 20
+    );
+    
+    $form['address'] = array(
+        '#title' => "Address",
+        '#type' => "fieldset",
+    );    
+    
+        $form['address']['street'] = array(
+            '#title' => "Street Address",
+            '#type' => "textfield",
+            '#required' => true,
+            '#size' => 20
+        );  
+
+        $form['address']['suburb'] = array(
+            '#title' => "Suburb",
+            '#type' => "textfield",
+            '#required' => true,
+            '#size' => 20
+        );
+    
+        $form['address']['state'] = array(
+            '#title' => "State",
+            '#type' => "textfield",
+            '#required' => true,
+            '#size' => 5
+        );  
+
+        $form['address']['postcode'] = array(
+            '#title' => "Postcode",
+            '#type' => "textfield",
+            '#required' => true,
+            '#size' => 5
+        );
+    
+    $form['phone'] = array(
+        '#title' => "Phone",
+        '#type' => "textfield",
+        '#required' => true,
+        '#size' => 20
+    );    
+    
+    $form['email'] = array(
+        '#title' => "Email Adress",
+        '#type' => "textfield",
+        '#required' => true,
+        '#size' => 20
+    );  
+    
+    $form['iam'] = array(
+        '#title' => "I am a :",
+        '#type' => "checkboxes",
+        '#options' => array(
+            "Tiler" => "Tiler",
+            "Trades Professional" => "Trades Professional",
+            "DIY Handyman" => "DIY Handyman"
+        )
+    );  
+    
+    $form['product_enquiry'] = array(
+        '#title' => "Product Enquiry",
+        '#type' => "textfield",
+        '#size' => 100
+    ); 
+    
+    $form['enquiry_type'] = array(
+        '#title' => "Enquiry type:",
+        '#type' => "checkboxes",
+        '#options' => array(
+            "Purchase Enquiry" => "Purchase Enquiry",
+            "Freight Charges" => "Freight Charges",
+            "Technical Information" => "Technical Information",
+            "Delivery Times" => "Delivery Times",
+            "Other" => "Other"
+        )
+    );
+       
+    $form['enquiry_notes'] = array(
+        '#title' => "Enquiry Notes",
+        '#type' => "textarea",
+        '#size' => 100
+    ); 
+    
+    $form['club'] = array(
+        '#prefix' => "<p>Tilers Online Club:</p>",
+        '#type'  => "radio",
+        '#default_value' => 0,
+        '#title' => "Please add me to the Tilers Online Club for updated product news and specials"
+    );
+    
+    $form['submit'] = array(
+        '#type'  => "submit",
+        '#value' => "Submit"
+    );
+       
+    return $form;
+}
+
+/*
+ * CONTACT FORM VALIDATION
+ */
+function tiler_contact_validate($form, &$form_state){
+    if (!valid_email_address($form_state['values']['email'])){
+        form_set_error('email', $form_state['values']['email'] . ' is not a valid email address');
+    }
+}
+
+/*
+ * CONTACT FORM SUBMITION
+ */
+function tiler_contact_submit(&$form, $form_state){
+    $params = array(
+        'message_body' => $form_state['enquiry_notes']
+    );
+    drupal_mail('tilers_pages', 'contact', 'christophe.cresson@gmail.com', 'en', $params, $form_state['values']['email']);
+}
+
+/*
+ * DISPLAY THE FORM AND ERROR MESSAGES
+ */
+function tiler_contact_display(){
+    $form = drupal_get_form('tiler_contact');
+    return theme_status_messages() . $form;
+}
+
+
+
+
+
+/*
+ * FORM PAYMENT
+ */
+function tiler_payment(){
+    $form = array();
+    
+    $form['name'] = array(
+        '#title' => "Name",
+        '#type' => "textfield",
+        '#size' => 40
+    );
+    
+    $form['contact'] = array(
+        '#title' => "Contact",
+        '#type' => "textfield",
+        '#size' => 40
+    );  
+    
+    $form['email'] = array(
+        '#title' => "Email Address",
+        '#type' => "textfield",
+        '#size' => 40
+    );  
+    
+    $form['ref'] = array(
+        '#title' => "You reference",
+        '#type' => "textfield",
+        '#size' => 40,
+        '#description' => "(e.g. Invoice 121212)"
+    );  
+    
+    $form['ammount'] = array(
+        '#title' => "Ammount",
+        '#type' => "textfield",
+        '#size' => 40,
+        '#prefix' => "<span>$</span>"
+    ); 
+       
+    $form['comment'] = array(
+        '#title' => "Comment",
+        '#type' => "textarea",
+        '#size' => 100
+    ); 
+    
+    $form['submit'] = array(
+        '#type'  => "submit",
+        '#value' => "Submit payment to National Australia Bank"
+    );
+    
+    $form['#theme'] = 'form_payment';
+       
+    return $form;
+}
+
+/*
+ * PAYMENT FORM VALIDATION
+ */
+function tiler_payment_validate($form, &$form_state){
+    
+}
+
+/*
+ * PAYMENT FORM SUBMITION
+ */
+function tiler_payment_submit(&$form, $form_state){
+    
+}
+
+/*
+ * DISPLAY THE FORM AND ERROR MESSAGES
+ */
+function tiler_payment_display(){
+    $form = drupal_get_form('tiler_payment');
+    return theme_status_messages() . $form;
+}
+
+/*
+ * THEMING PAYMENT FORM
+ */
+function theme_form_payment($form){
+  $output  = drupal_render($form['name']);
+  $output  .= drupal_render($form['contact']);
+  $output  .= drupal_render($form['email']);
+  $output  .= drupal_render($form['ref']);  
+  
+  $output .= '  <div id="edit-ammount-wrapper" class="form-item">
+                   <label for="edit-ammount">' . $form['ammount']['#title'] . ': </label>
+                   <span class="prefix">$</span><input type="text" class="form-text" value="" size="40" id="edit-ammount" name="ammount" maxlength="128">
+                </div>';
+  
+  $output  .= drupal_render($form['comment']);  
+  $output  .= drupal_render($form['submit']);  
+  return $output;
+}
+
+
+/** CUSTOM BREADCRUMB FOR PRODUCTS **/
+

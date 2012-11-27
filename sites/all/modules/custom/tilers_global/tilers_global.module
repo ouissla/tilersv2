@@ -1,0 +1,255 @@
+<?php
+/*
+ * Hook_block to create a menu block
+ */
+/*function tilers_global_block($op = 'list', $delta = 0, $edit = array()) {
+  if ($op == 'list') {
+    $blocks[0] = array(
+      'info' => t('Homepage sliding images'),
+      'weight' => 0,
+      'status' => 1,
+    );
+
+    return $blocks;
+  }
+  else if ($op == 'view') {
+    switch ($delta) {
+      case 0:
+        // Your module will need to define this function to render the block.
+        $block = array(
+          'subject' => "Homepage Slider",
+          'content' => tilers_global_show_slider(),
+        );
+        break;
+    }
+    return $block;
+  }
+}*/
+
+// Hook_menu implementation
+function tilers_global_menu(){
+    $items = array();
+
+    $items['adhesives/grout-calculator'] = array(
+       'title'           => 'Grout calculator',
+       'page callback'   => 'tilers_global_grout_calculator',
+       'access callback' => TRUE,
+       'type'            => MENU_CALLBACK,
+    );
+
+    return $items;
+}
+
+function tilers_global_show_slider(){
+  $sql = db_query('SELECT nid FROM node WHERE type = "slider" AND status = 1');
+  $sliders = array();
+  while ($data = db_fetch_object($sql)){
+    $sliders[] = node_load($data->nid);
+  }
+  
+  $output = '<ul id="slides">';
+
+
+
+  foreach ($sliders as $slider){
+    
+    $output .= '<li style="width: 960px;">';
+    if ($slider->field_slider_link[0]['value'] != ''){
+      $target = ($slider->field_slider_link_target[0]['value'] == 'external') ? 'target="_blank"' : 'target="_self"';
+      $output .= '<a href="' . $slider->field_slider_link[0]['value'] .'" title="' . $node->title . '" ' . $target . '>';
+      $output .= theme('imagecache', 'slider-big', $slider->field_slider_slide[0]['filepath']);
+      $output .= '</a>';
+    } else {
+      $output .= theme('imagecache', 'slider-big', $slider->field_slider_slide[0]['filepath']);
+    }
+    $output .= '</li>';
+        
+  }
+  $output .= '</ul>';
+
+  $output .= '<div class="jcarousel-control"><ul>';
+  for ($i = 1; $i <= count($sliders); $i++){
+    $output .= '<li><a href="#" id="nav' . $i . '" class="jcarousel-nav-links">' . $i . '</a></li>';
+  }
+  $output .= '</ul></div>';
+  
+  return $output;
+}
+
+/**
+ *
+ */
+function tilers_global_form_alter(&$form, $form_state, $form_id) {
+    global $user;
+
+    if ($form_id == 'uc_cart_view_form') {
+        $form['items']['#columns']['image'] = array('cell' => 'Image', 'weight' => 1);
+        $form['items']['#columns']['desc'] = array('cell' => 'Product', 'weight' => 2);
+        $form['items']['#columns']['price'] = array('cell' => 'Price', 'weight' => 4, 'attributes' => array('class' => 'individualprice'));
+        foreach ($form['items'] as $key => $item){
+            if (is_array($item) && isset($item['nid'])){
+                $node = node_load($item['nid']['#value']);
+
+                $titlevalue = '<div class="cart-item">';
+                $titlevalue .= theme('imagecache', 'thumbnail', $node->field_product_images[0]['filepath']);
+                $titlevalue .= l($node->title, drupal_get_path_alias('node/' . $node->nid));
+                $titlevalue .= '</div>';
+
+                $form['items'][$key]['title']['#printed'] = $titlevalue;
+
+                if (in_array('wholesale', $user->roles)){
+                    $raw_price = $node->role_prices[4];
+                } elseif (in_array('distributor', $user->roles)){
+                    $raw_price = $node->role_prices[5];
+                } else {
+                    $raw_price = $node->roleindependent_sell_price;
+                }
+                $price = format_price($raw_price * 1.1);
+
+                $form['items'][$key]['price'] = array(
+                    '#value' => $price
+                );
+
+                $stock = uc_stock_level($node->model);
+                if ($stock > 0){ 
+                $stock_level = '
+                <div class="stock-status">
+                  <div class="stock-info" class="instock">
+                    Immediate Despatch
+                    <div class="stock-info-inner">
+                      Immediate Despatch
+                      We currently hold stock of this item in our warehouse. Purchase this item before 11am and it will be shipped today
+                    </div>
+                  </div>
+                  <div class="on-stock">
+                    Immediate Despatch
+                    <a href="#" class="availability-info-on">
+                      <img src="/sites/all/themes/acquia_prosper/images/question-mark-icon.jpg" />
+                    </a>
+                  </div>       
+                </div>';
+                } else {
+                  $stock_level = '
+                  <div class="stock-status">
+                    <div class="stock-info" class="offstock">
+                      Available - Possible Delay
+                      <div class="stock-info-inner">
+                        We are waiting on delivery of this item from the manufacturer. Add this item to your cart and we will contact you within 24 hours to advise delivery date. You will not be charged for this item
+                      </div>
+                    </div>
+                    <div class="off-stock">Available - Possible Delay  
+                      <a href="#" class="availability-info-off">
+                        <img src="/sites/all/themes/acquia_prosper/images/question-mark-icon.jpg" />
+                      </a>
+                    </div>
+                  </div>';   
+                }
+
+                $desc = $form['items'][$key]['desc']['#value'];
+                $form['items'][$key]['desc'] = array(
+                    '#value' => $desc . $stock_level,
+                    '#cell_attributes' => array('class' => 'desc')
+                );
+
+                $form['items'][$key]['image']['#value'] = theme('imagecache', 'related_products', $node->field_product_images[0]['filepath']);
+            }
+        }
+    }
+}
+
+/**
+ * Hook_theme implementation
+ **/
+function tilers_global_theme($existing, $type, $theme, $path) {
+  return array(
+    'grout-calculator' => array(
+      'arguments' => array('form' => NULL),
+      'template' => 'grout-calculator', // this is the name of the template
+    ),
+  );
+}
+
+/**
+ * Create the Grout calculator widget
+ */
+function tilers_global_grout_calculator(){
+  $form = drupal_get_form('grout_calculator_form');
+  return theme('grout-calculator', $form);
+}
+
+/**
+ * Set up the grout calculator form
+ */
+function grout_calculator_form(){
+  $form = array();
+
+  $form['left'] = array(
+    '#value' => '<div class="calculator-left"><p class="indication"><em>Input values in millimeters</em></p>'
+  );
+
+  $form['tile_length'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Length of tile'),
+    '#default_value' => 100,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['tile_width'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Width of tile'),
+    '#default_value' => 100,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['grout_length'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Length of grout joints'),
+    '#default_value' => 3,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['grout_width'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Depth of grout joints'),
+    '#default_value' => 6,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['density'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Function of density (see below)'),
+    '#default_value' => 1.6,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['surface'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Total square metres'),
+    '#default_value' => 100,
+    '#attributes' => array('class' => 'calculate-item')
+  );
+
+  $form['right'] = array(
+    '#value' => '</div><div class="calculator-right">'
+  );
+
+  $form['grout_total'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Quantity required (Kg)'),
+    '#disabled' => 'disabled',
+  );
+
+  $form['desity-details'] = array(
+    '#value' => '<div class="density-info">
+        <h4>Product density</h4>
+        <ul>
+          <li>Sanded and Quarry Grout: 1.6</li>
+          <li>Smooth Grout: 1.5</li>
+          <li>Epoxy Grout: 1.6</li>
+        </ul>
+      </div>
+    </div>'
+  );
+
+  return $form;
+}

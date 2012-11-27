@@ -1,0 +1,958 @@
+<?php
+
+function trueerp_menu() {
+  $items = array();
+
+  $items['admin/settings/trueerp/config'] = array(
+    'title' => 'TrueERP Configuration',
+    'description' => 'Configuration for TrueERP connexion',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('trueerp_config'),
+    'access callback' => TRUE,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/settings/trueerp/import'] = array(
+    'title' => 'TrueERP import',
+    'description' => 'Import data from TrueERP',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('trueerp_import_form'),
+    'access callback' => TRUE,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+/*
+ * Configuration form for TrueERP
+ */
+function trueerp_config(){
+
+    $default_host = variable_get('trueerp_host', "");
+    $default_port = variable_get('trueerp_port', "");
+    $default_username = variable_get('trueerp_username', "");
+    $default_password = variable_get('trueerp_password', "");
+    $default_database = variable_get('trueerp_database', "");
+
+    $form = array();
+    $form['host'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Host'),
+      '#default_value' => $default_host,
+      '#size' => 60,
+      '#maxlength' => 256,
+      '#description' => t('The URL of the server on which TrueERP has been installed. e.g. 101.90.89.122'),
+    );
+
+    $form['port'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Port'),
+      '#default_value' => $default_port,
+      '#size' => 60,
+      '#maxlength' => 5,
+      '#description' => t('Specify the port to use for the connexion. Default : 443'),
+    );
+
+    $form['username'] = array(
+      '#type' => 'textfield',
+      '#title' => t('TrueERP Username'),
+      '#default_value' => $default_username,
+      '#size' => 60,
+      '#maxlength' => 256,
+      '#description' => t('The Username of your TrueERP account.'),
+    );
+
+    $form['password'] = array(
+      '#type' => 'textfield',
+      '#title' => t('TrueERP Password'),
+      '#default_value' => $default_password,
+      '#size' => 60,
+      '#maxlength' => 256,
+      '#description' => t('The Password of your TrueERP account.'),
+    );
+
+    $form['database'] = array(
+      '#type' => 'textfield',
+      '#title' => t('TrueERP database name'),
+      '#default_value' => $default_database,
+      '#size' => 60,
+      '#maxlength' => 256,
+      '#description' => t('The TrueERP database name.'),
+    );
+
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Submit'),
+    );
+
+    return $form;
+}
+/*
+ * TrueERP configuration submit
+ */
+function trueerp_config_submit(&$form, $form_state){
+    variable_set('trueerp_host', $form_state['values']['host']);
+    variable_set('trueerp_port', $form_state['values']['port']);
+    variable_set('trueerp_username', $form_state['values']['username']);
+    variable_set('trueerp_password', $form_state['values']['password']);
+    variable_set('trueerp_database', $form_state['values']['database']);
+}
+
+/*
+ * Return a ressource from the ERP
+ */
+function trueerp_get($ressource){
+    $trueerp_host = variable_get('trueerp_host', "");
+    $trueerp_port = variable_get('trueerp_port', "");
+    $trueerp_username = variable_get('trueerp_username', "");
+    $trueerp_password = variable_get('trueerp_password', "");
+    $trueerp_database = variable_get('trueerp_database', "");
+
+    // Set some parameters for sending request.
+    $request_url = 'https://' . $trueerp_username . ':' . $trueerp_password . '@' . $trueerp_host . ':' . $trueerp_port . '/' . $ressource;
+	$headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    $headers['database'] = $trueerp_database;
+    $request_method = 'GET';
+
+    // Send the request.
+    $result = drupal_http_request($request_url, $headers, $request_method);
+	//dsm($result);
+    if (is_object($result) && $result->code == 200){
+        $data = (json_decode($result->data));
+        return $data;
+    }
+
+    return "connexion error";
+}
+
+/*
+ * Send a ressource to the ERP
+ */
+function trueerp_set($ressource, $data){
+	
+    $trueerp_host = variable_get('trueerp_host', "");
+    $trueerp_port = variable_get('trueerp_port', "");
+    $trueerp_username = variable_get('trueerp_username', "");
+    $trueerp_password = variable_get('trueerp_password', "");
+    $trueerp_database = variable_get('trueerp_database', "");
+
+    // Set some parameters for sending request.
+    $request_url = url('https://' . $trueerp_username . ':' . $trueerp_password . '@' . $trueerp_host . ':' . $trueerp_port . '/' . $ressource, array(absolute => TRUE));
+    
+    //$headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    $headers['Content-Type'] = 'application/json';
+    //$headers['Content-Length'] = '500';
+	
+    $headers['database'] = $trueerp_database;
+	
+    $request_method  = 'POST';
+	
+    // Send the request.
+    $result = drupal_http_request($request_url, $headers, $request_method, $data);
+
+    if (is_object($result) && $result->code == 200){
+        $data = (json_decode($result->data));
+        dsm($data);
+        return $data;
+    }
+    dsm($result);
+    watchdog('trueerp', 'Data were not posted correctly', $data, WATCHDOG_WARNING);
+    return "connexion error";
+
+}
+
+/*
+ * Display Import page
+ */
+function trueerp_import_form(){
+    $form = array();
+
+    $form['type'] = array(
+        '#type' => 'radios',
+        '#title' => 'Which type of data do you want to import?',
+        '#options' => array(
+            'products' => "Products",
+            'customers' => "Custtttomers"
+        ),
+        '#required' => TRUE
+    );
+    
+    $form['from'] = array(
+        '#type' => 'textfield',
+        '#title' => 'From ID'
+    );
+    
+    $form['to'] = array(
+        '#type' => 'textfield',
+        '#title' => 'To ID'
+    );
+
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => 'Submit',
+    );
+
+    return $form;
+}
+
+/*
+ * TrueERP import form submit
+ */
+function trueerp_import_form_submit(&$form, $form_state){
+    $from = $form_state['values']['from'];
+    $to = $form_state['values']['to'];
+  
+    trueerp_import($form_state['values']['type'], $from, $to);
+    drupal_set_message('Import completed!');
+}
+
+/*
+ * Import produts from ERP
+ */
+function trueerp_import($type, $from = 0, $to = 5000){
+    $count = 1;
+    switch ($type){
+        case "products":
+        
+			require_once 'modules/node/node.pages.inc'; // Required for node_object_prepare();
+			
+			// We get the list of all products
+            $products = trueerp_get('erpapi/TProductWeb');
+            
+//dsm($products);
+
+            if (is_object($products)){
+				
+				// We browse all products
+                foreach ($products->tproductweb as $p){
+                  
+if ($p->ID > $from && $p->ID < $to) {
+                  
+                  $existing_tilers_erp_product = db_fetch_object(db_query('SELECT updated FROM {tilers_erp_products} WHERE erpid = %d', $p->ID));
+                  
+                  $product = trueerp_get('erpapi/TProductWeb/' . $p->ID);
+                  
+  //if($product->fields->PRODUCTCODE == "SI-ART 3BM"){
+                  
+                  if (is_object($existing_tilers_erp_product)){
+                      // The product has already been inserted into the database
+                      // Check if it needs to be updated
+                      if (strtotime($p->msTimeStamp) > $existing_tilers_erp_product->updated){
+                          // We check if the current product already exists
+                          $existing_product = db_fetch_object(db_query('SELECT nid FROM {uc_products} WHERE model = "%s"', $product->fields->PRODUCTCODE));
+                          $existing_option = db_fetch_object(db_query('SELECT nid FROM {uc_product_adjustments} WHERE model = "%s"', $product->fields->PRODUCTCODE));
+                          
+                          if (is_object($existing_option)) {
+                              // If the variation already exists, then it is an update
+                              $node = node_load($existing_option->nid);
+                              if ($node->changed < strtotime($p->msTimeStamp)){
+                                  dsm('updating variation' . $node->title);
+                                  trueerp_update($product, $node, 1);
+                              }
+                          } elseif(is_object($existing_product)){
+                              // If the product already exists, then it is an update
+                              $node = node_load($existing_product->nid);
+                              if ($node->changed < strtotime($p->msTimeStamp)){
+                                  dsm('updating product' . $node->title);
+                                  trueerp_update($product, $node);
+                              }
+                          }
+                      }
+                  } else {
+                  
+                      //$count++;
+                      if ($product->fields->PRODUCTCODE != '' && $product->fields->PublishOnWebsite){
+                        //dsm($product);
+                        //$count++;
+                        
+                            // This is a new product or variation
+                            
+                            
+                            /////////
+                            // Set attributes
+                            /////////
+                            // We first need to check if this product is a "master" product, or a just a variation of the master product
+                            if ($product->fields->CUSTFLD2 != '' && $product->fields->CUSTFLD2 != $product->fields->PRODUCTCODE){
+                     
+                                // We get the "master" product, if it has not been created yet let's log a message
+                                $master_id = db_fetch_object(db_query('SELECT nid FROM {uc_products} WHERE model = "%s"', $product->fields->CUSTFLD2));
+                            
+                                if (is_object($master_id)){
+                                    $master = node_load($master_id->nid);
+                                
+                                    if (is_object($master)){
+                                
+                                        // We have to check that there is allready an option for the master product
+                                        // If there is no option available, it means that the current product is the first
+                                        // variation of the master product
+                                        $master_option = db_fetch_object(db_query('SELECT * FROM {uc_product_attributes} WHERE nid = %d', $master->nid));
+                                        if (!is_object($master_option)){
+                                            // We have to create the master option first
+                                            db_query('INSERT INTO {uc_attribute_options} (aid, oid, name, cost, price, weight, ordering)
+                                            VALUES (1, NULL, "%s", 0, 0, 0, 0)', $master->title);
+                                        
+                                            // Then we add the attribute to the master product
+                                            db_query('INSERT INTO {uc_product_attributes} (nid, aid, label, ordering, default_option, required, display)
+                                            VALUES (%d, 1, "Select your Model/Price from the list", 0, 1, 0, 1)', $master->nid);
+                                            
+                                            // We store the option id related to the current variation to find it easily later
+                                            $last_option_id = db_last_insert_id('uc_attribute_options', 'oid');
+                                            db_query('UPDATE {tilers_erp_products} SET oid = %d WHERE sku = "%s"', $last_option_id, $master->model);
+                                    
+                                            // Finally we associate the new option to the master product
+                                            $last_option_id = db_last_insert_id('uc_attribute_options', 'oid');
+                                            db_query('INSERT INTO {uc_product_options} (nid, oid, cost, price, weight, ordering)
+                                            VALUES (%d, %d, 0, 0, 0, 0)', $master->nid, $last_option_id);
+                                        
+                                            // Now we need to update the product Title to have a generic title for all options
+                                            if ($product->fields->CUSTFLD3 != ''){
+                                                db_query('UPDATE {node} SET title = "%s" WHERE nid = %d', $product->fields->CUSTFLD3, $master->nid);
+                                            }
+                                        
+                                            // Let's create price per role option prices
+                                            // For trade user, rid = 4
+                                            db_query('INSERT INTO {uc_price_per_role_option_prices} (opid, nid, oid, rid, price)
+                                            VALUES (NULL, %d, %d, 4, 0)', $master->nid, $last_option_id);
+                                            // For wholesale user, rid = 5
+                                            db_query('INSERT INTO {uc_price_per_role_option_prices} (opid, nid, oid, rid, price)
+                                            VALUES (NULL, %d, %d, 5, 0)', $master->nid, $last_option_id);
+                                        
+                                        }
+                                    
+                                        // Now we create the new option for the current product variation
+                                        $price_difference = round($product->fields->SellQty1Price, 2) - $master->sell_price;
+                                        db_query('INSERT INTO {uc_attribute_options} (aid, oid, name, cost, price, weight, ordering)
+                                        VALUES (1, NULL, "%s", 0, %f, 0, 0)', $product->fields->ProductDescription, $price_difference);
+                                    
+                                        // We store the option id related to the current variation to find it easily later
+                                        $last_option_id = db_last_insert_id('uc_attribute_options', 'oid');
+                                        db_query('INSERT INTO {tilers_erp_products} (sku, erpid, oid, updated) VALUES ("%s", "%s", %d, %d)', $product->fields->PRODUCTCODE, $p->ID, $last_option_id, strtotime($p->msTimeStamp));
+                                    
+                                        // Now we associate the new option to the master product
+                                        db_query('INSERT INTO {uc_product_options} (nid, oid, cost, price, weight, ordering)
+                                        VALUES (%d, %d, 0, %f, 0, 0)', $master->nid, $last_option_id, $price_difference);
+    
+                                        // We now have to create a product adjustement to signify that this options has an other SKU
+                                        $combination = serialize(array(1 => $last_option_id));
+                                        db_query('INSERT INTO {uc_product_adjustments} (nid, combination, model)
+                                        VALUES (%d, "%s", "%s")', $master->nid, $combination, $product->fields->PRODUCTCODE);
+                                    
+                                        // Let's create price per role option prices
+                                        // For distributor user, rid = 5
+                                        // prendre le prix trade master moins le trade current
+                                        $master_distributor_price = _trueerp_get_masterprice_option_per_role($master->nid, 5);
+                                        if (is_object($master_distributor_price)){
+                                            $price = $product->fields->ExtraSellPrice[3]->fields->Price1 - $master_distributor_price->price;
+                                            trueerp_price_per_role_options($master->nid, $last_option_id, 5, $price);
+                                        } else {
+                                            drupal_set_message('Price option per role for Distributor users has not been set for product "' . $node->model . '"!');
+                                        }
+                                    
+                                        // For wholesale user, rid = 4
+                                        $master_wholesale_price = _trueerp_get_masterprice_option_per_role($master->nid, 4);
+                                        if (is_object($master_wholesale_price)){
+                                            $price = $product->fields->ExtraSellPrice[2]->fields->Price1 - $master_wholesale_price->price;
+                                            trueerp_price_per_role_options($master->nid, $last_option_id, 4, $price);
+                                        } else {
+                                            drupal_set_message('Price option per role for Wholesale users has not been set for product "' . $product->fields->PRODUCTCODE . '"!');
+                                        }
+                                    
+                                        // We set the stock value
+                                        trueerp_set_stock($product, $master);
+                                    
+                                        // Set volue discounts
+                                        trueerp_set_volume_discounts($product);
+                                    dsm('creating and option ' . $product->fields->PRODUCTCODE);
+                                    
+                                    } else {
+                                        drupal_set_message('Product "' . $product->fields->PRODUCTCODE . '" master could not be loaded, or linked!');
+                                    }
+                                
+                                } else {
+                                    drupal_set_message('Product "' . $product->fields->PRODUCTCODE . '" could not be linked to a master product!');
+                                }
+                            }
+                            else {
+                                if ($product->fields->ProductDescription != '' && $product->fields->PRODUCTCODE != ""){
+                                    dsm('creating new product ' . $product->fields->PRODUCTCODE);
+                                    $node = new stdClass();
+                                    $nodetype = "";
+                                    switch ($product->fields->ProductGroup1){
+                                        case 'TOOLS':
+                                            $nodetype = 'tool';
+                                            break;
+                                        case 'ADHESIVE':
+                                        case 'ADHESIVES':
+                                            $nodetype = 'adhesive';
+                                            break;
+                                        case 'FLOOR GRATES':
+                                            $nodetype = 'floor';
+                                            break;
+                                        case 'SEALANTS':
+                                            $nodetype = 'sealant';
+                                            break;
+                                        case 'SOUND INSULATION':
+                                            $nodetype = 'sound';
+                                            break;
+                                        case 'TILE CARE':
+                                            $nodetype = 'tilecare';
+                                            break;
+                                        case 'TILE TRIM':
+                                        case 'TILING TRIMS':
+                                            $nodetype = 'trim';
+                                            break;
+                                        case 'WATERPROOFING':
+                                            $nodetype = 'waterproofing';
+                                            break;
+                                    }
+                                    
+                                    if ($nodetype == ""){
+                                        watchdog('TrueERP', 'Product %id was not imported. Category missing', array('%id' => $product->fields->PRODUCTCODE));
+                                    } else {
+                                    
+                                        $node->type = $nodetype;
+        
+                                        node_object_prepare($node); // This sets up all the default node fields so we don't accidentally leave something off.
+        
+                                        // Copy over all the existing settings from Drupal.
+                                        $node->uid = 1;
+                                        $node->status = 1;
+                                        $node->title = $product->fields->ProductDescription;
+                                        $node->created = time();
+                                        $node->changed = time();
+                                        // Set Ubercart variables
+                                        $node->model = $product->fields->PRODUCTCODE; // the SKU is a required field, so I generated a SKU based on the node title
+                                        $node->list_price = round($product->fields->SellQty1Price, 2);
+                                        $node->cost = round($product->fields->SellQty1Price, 2);
+                                        $node->sell_price = round($product->fields->SellQty1Price, 2);
+                                        $node->default_qty = 1;
+                                        $node->pkg_qty = 1;
+                                    
+                                        // Save the node
+                                        node_save($node);
+                                        
+                                        /////////
+                                        // Fill the tilers_erp_products table
+                                        /////////
+                                        db_query('INSERT INTO {tilers_erp_products} (sku, erpid, oid, updated) VALUES ("%s", "%s", 0, %d)', $product->fields->PRODUCTCODE, $p->ID, strtotime($p->msTimeStamp));
+                                        
+                                        
+                                        // We set the stock value
+                                        trueerp_set_stock($product, $node);
+        
+                                        //Volume Discounts
+                                        trueerp_set_volume_discounts($product);
+                                
+                                        // Differents prices for differents user roles
+                                        trueerp_set_prices_per_role($product, $node->nid);
+                                    }
+                                }
+                        
+                            }
+                        
+                    } //endif to delete   
+                    
+                  }
+                } //endforeach
+                } // end from to
+            }
+            
+            
+            //Publish on website
+               
+            
+        break;
+        case "customers":
+          
+          $products = trueerp_get('erpapi/TProductWeb');
+          
+          //dsm($products);
+          $count = 1; //dsm($products);
+            if (is_object($products)){
+				
+				// We browse all products
+                foreach ($products->tproductweb as $p){
+                  $count++;
+                 // if ($count > 1500 && $count < 2500){
+                 if ($p->ID > 2700){
+                  $product = trueerp_get('erpapi/TProductWeb/' . $p->ID);
+                  echo $p->ID . '----' . $product->fields->PRODUCTCODE . '---' . $product->fields->ProductDescription . '<br />'; //if($product->fields->PRODUCTCODE == "SI-ART 3BM"){
+                  }
+                }
+            }
+          
+          /*$product = trueerp_get('erpapi/TProductWeb/2728');
+          dsm($product);*/
+          
+        break;
+    }
+}
+
+
+
+/**
+ * Check for update on the current product
+ **/
+function trueerp_update($product, $node, $is_option = 0){
+  
+  // browse all product, check update time
+  // if update time different, run update
+  // We get the list of all products
+  
+    $tilers_erp_product = db_fetch_object(db_query('SELECT * FROM {tilers_erp_products} WHERE sku = "%s"', $product->fields->PRODUCTCODE));
+
+	// Check the stock value
+	$sku = $product->fields->PRODUCTCODE;
+	$website_stock = uc_stock_level($sku);
+	if ($website_stock != $product->fields->TotalQtyInStock){
+		$stock_variation = $product->fields->TotalQtyInStock - $website_stock;
+		uc_stock_adjust($sku, $stock_variation);
+	}
+    
+	// We check node->status just to know if this fields exists, which means node reprensent a main product, and not a variation
+	if ($node->status) {
+      
+        if ($is_option == 0){
+            // We need to update the sell price
+			$new_main_price = round($product->fields->SellQty1Price, 2);
+			db_query('UPDATE {uc_products} SET sell_price = %d, list_price = %d, cost = %d WHERE model = "%s"', $new_main_price, $new_main_price, $new_main_price, $node->model);
+		
+            trueerp_set_prices_per_role($product, $node->nid, 1);
+        } else {
+            // We get the "master" product, if it has not been created yet let's log a message
+			$master_id = db_fetch_object(db_query('SELECT nid FROM {uc_products} WHERE model = "%s"', $product->fields->CUSTFLD2));
+                        
+            if (is_object($master_id)){
+                $master = node_load($master_id->nid);
+                if (is_object($master)){
+                    
+                    // Main price
+                    // Now we create the new option for the current product variation
+                    $price_difference = round($product->fields->SellQty1Price, 2) - $master->sell_price;
+                    db_query('UPDATE {uc_attribute_options} SET price = "%s"
+                            WHERE oid = %d', $price_difference, $tilers_erp_product->oid);
+                    db_query('UPDATE {uc_product_options} SET price = "%s"
+                            WHERE oid = %d', $price_difference, $tilers_erp_product->oid);
+                    
+                    // Let's update price per role option prices
+                    // For distributor user, rid = 5
+                    // prendre le prix trade master moins le trade current
+                    $master_distributor_price = _trueerp_get_masterprice_option_per_role($master->nid, 5);
+                    if (is_object($master_distributor_price)){
+                        $price = $product->fields->ExtraSellPrice[3]->fields->Price1 - $master_distributor_price->price;
+                        trueerp_price_per_role_options($master->nid, $tilers_erp_product->oid, 5, $price, 1);
+                    } else {
+                        drupal_set_message('Price option per role for Distributor users has not been set for product "' . $product->fields->PRODUCTCODE . '"!');
+                    }
+                    
+                     // For wholesale user, rid = 4
+                    $master_wholesale_price = _trueerp_get_masterprice_option_per_role($master->nid, 4);
+                    if (is_object($master_wholesale_price)){
+                        $price = $product->fields->ExtraSellPrice[2]->fields->Price1 - $master_wholesale_price->price;
+                        trueerp_price_per_role_options($master->nid, $tilers_erp_product->oid, 4, $price, 1);
+                    } else {
+                        drupal_set_message('Price option per role for Wholesale users has not been set for product "' . $product->fields->PRODUCTCODE . '"!');
+                    }
+                }
+            }
+        
+           
+        }
+		
+		// We don't need to update price per role options as it has to be 0
+		
+		// Check volume discounts...
+		if ($product->fields->SellQty2Price == $product->fields->SellQty1Price){
+			// pas de volume discount, on verifie si un volume discount a ete cree et on le supprime
+		} else {
+			$d = db_fetch_object(db_query('SELECT t.discount_id FROM {tilers_discounts} t
+			LEFT JOIN {tilers_discounts_skus} tds ON tds.discount_id = t.discount_id
+			WHERE tds.sku = "%s"
+			AND t.qualifying_amount = %d
+			AND t.discount_amount = %d', $node->model, $product->fields->SellQty2, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty2Price, 2))));
+			
+			if (!is_object($d)){
+				// on efface tout et on reset
+			}
+			
+		}
+		
+		if ($product->fields->SellQty3Price == $product->fields->SellQty1Price){
+			// pas de volume discount, on verifie si un volume discount a ete cree et on le supprime
+		} else {
+			$d = db_fetch_object(db_query('SELECT t.discount_id FROM {tilers_discounts} t
+			LEFT JOIN {tilers_discounts_skus} tds ON tds.discount_id = t.discount_id
+			WHERE tds.sku = "%s"
+			AND t.qualifying_amount = %d
+			AND t.discount_amount = %d', $node->model, $product->fields->SellQty3, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty3Price, 2))));
+			
+			if (!is_object($d)){
+				// on efface tout et on reset
+			}
+			
+		}
+		
+	}
+	
+	
+}
+
+function trueerp_user($op, &$edit, &$account, $category = NULL) {
+  if ($op == 'insert') {
+      $json_user = trueerp_customer_json($account);
+      $result = trueerp_set('erpapi/TCustomer', $json_user);
+  }
+}
+
+function trueerp_customer_json($user){
+	profile_load_profile($user);
+	
+		require 'true.class.php';
+		$data = array (
+			'type' => 'TCustomer',
+			'fields' =>
+			xtdClass::__set_state(array(
+			 'ClientName' => $user->profile_company,
+			 'Title' => $user->profile_title,
+			 'FirstName' => $user->profile_firstname,
+			 'LastName' => $user->profile_lastname,
+			 'Street' => $user->profile_street1,
+			 'Street2' => $user->profile_street2,
+			 'Street3' => $user->profile_street3,
+			 'Suburb' => $user->profile_suburb,
+			 'Postcode' => $user->profile_postcode,
+			 'State' => $user->profile_state,
+			 'Country' => 'Australia',
+			 'Phone' => $user->profile_phone,
+			 'Faxnumber' => $user->profile_fax,
+			 'Email' => $user->profile_email,
+			 'Mobile' => $user->profile_mobile,
+			 'ClientTypeName' => 'Default',
+			 'SourceName' => 'Radio',
+			)),
+		);
+		$output = json_encode($data);
+
+    
+
+return $output;
+
+}
+
+/**
+ * BRAND MATRIX
+ * THIS FUNCTION IS NOT BEING USED AT THE MOMENT, IT IS JUST A LIST OF THE BRANDS IN THE ERP
+ * THE BRAND ARE HANDLED MANUALLY WITHIN THE WEBSITE
+ **/
+function trueerp_brand_matrix($brand){
+    
+    switch ($brand){
+        case 'AACHEN':
+            $brandid = 3;
+            break;
+        case 'AEG':
+            $brandid = 3;
+            break;
+        case 'APTEK':
+            $brandid = 3;
+            break;
+        case 'ANSELL':
+            $brandid = 3;
+            break;
+        case 'AQUAMIX':
+            $brandid = 3;
+            break;
+        case 'ATIKA':
+            $brandid = 3;
+            break;
+        case 'BACKSET':
+            $brandid = 3;
+            break;
+        case 'BELLE':
+            $brandid = 3;
+            break;
+        case 'BERMUDA':
+            $brandid = 3;
+            break;
+        case 'BGC':
+            $brandid = 3;
+            break;
+        case 'BMI':
+            $brandid = 3;
+            break;
+        case 'BOKER':
+            $brandid = 3;
+            break;
+        case 'BOSTIK':
+            $brandid = 3;
+            break;
+        case 'C-CUT':
+            $brandid = 3;
+            break;
+        case 'CARBIDE':
+            $brandid = 3;
+            break;
+        case 'CONSTRUCTION CHEMICALS':
+            $brandid = 3;
+            break;
+        case 'CTA':
+            $brandid = 3;
+            break;
+        case 'CUSTOM':
+            $brandid = 3;
+            break;
+        case 'CUTMAN':
+            $brandid = 3;
+            break;
+        case 'DENVER':
+            $brandid = 3;
+            break;
+        case 'DIAFACE':
+            $brandid = 3;
+            break;
+        case 'DIAFLEX':
+            $brandid = 3;
+            break;
+        case 'DURAM':
+            $brandid = 3;
+            break;
+        case 'EHWA':
+            $brandid = 3;
+            break;
+        case 'FEIN':
+            $brandid = 3;
+            break;
+        case 'FESTOOL':
+            $brandid = 3;
+            break;
+        case 'GHELFI':
+            $brandid = 3;
+            break;
+        case 'HANSON':
+            $brandid = 3;
+            break;
+        case 'HILAP':
+            $brandid = 3;
+            break;
+        case 'IMER':
+            $brandid = 3;
+            break;
+        case 'IMEX':
+            $brandid = 3;
+            break;
+        case 'LASER DEPOT':
+            $brandid = 3;
+            break;
+        case 'LATICRETE':
+            $brandid = 3;
+            break;
+        case 'LITHOFIN':
+            $brandid = 3;
+            break;
+        case 'LUFKIN':
+            $brandid = 3;
+            break;
+        case 'MAPEI':
+            $brandid = 3;
+            break;
+        case 'MARCO PESARO':
+            $brandid = 3;
+            break;
+        case 'MAXI-CUT':
+            $brandid = 3;
+            break;
+        case 'MAXICUT':
+            $brandid = 3;
+            break;
+        case 'MAXISIL':
+            $brandid = 3;
+            break;
+        case 'PLASTEC':
+            $brandid = 3;
+            break;
+        case 'PROSCREED':
+            $brandid = 3;
+            break;
+        case 'QEP':
+            $brandid = 3;
+            break;
+        case 'RAIMONDI':
+            $brandid = 3;
+            break;
+        case 'RLA':
+            $brandid = 3;
+            break;
+        case 'ROK':
+            $brandid = 3;
+            break;
+        case 'RUBI':
+            $brandid = 3;
+            break;
+        case 'SEBALD':
+            $brandid = 3;
+            break;
+        case 'SELLEYS':
+            $brandid = 3;
+            break;
+        case 'SETTER':
+            $brandid = 3;
+            break;
+        case 'SIGMA':
+            $brandid = 3;
+            break;
+        case 'SIKA':
+            $brandid = 3;
+            break;
+        case 'SIMPLY SEAL':
+            $brandid = 3;
+            break;
+        case 'SOROTO':
+            $brandid = 3;
+            break;
+        case 'SOUDAL':
+            $brandid = 3;
+            break;
+        case 'SPIRIT':
+            $brandid = 3;
+            break;
+        case 'STABILA':
+            $brandid = 3;
+            break;
+        case 'STERLING':
+            $brandid = 3;
+            break;
+        case 'SUPAPOXY':
+            $brandid = 3;
+            break;
+        case 'SURE SEAL':
+            $brandid = 3;
+            break;
+        case 'SURESEAL':
+            $brandid = 3;
+            break;
+        case 'TAJIMA':
+            $brandid = 3;
+            break;
+        case 'TENAX':
+            $brandid = 3;
+            break;
+        case 'TILERS ONLINE':
+            $brandid = 3;
+            break;
+        case 'TOPGRATES':
+            $brandid = 3;
+            break;
+        case 'TTL':
+            $brandid = 3;
+            break;
+        case 'TUSCAN':
+            $brandid = 3;
+            break;
+        case 'UNI-PRO':
+            $brandid = 3;
+            break;
+        case 'UNIROLL':
+            $brandid = 3;
+            break;
+        case 'WESTMIX':
+            $brandid = 3;
+            break;
+        case 'WET & FORGET':
+            $brandid = 3;
+            break;
+        default:
+            $brandid = FALSE;
+            break;
+    }
+    
+    return $brandid;
+}
+
+/**
+ * SET STOCK VALUE
+ **/
+function trueerp_set_stock($product, $node){
+    db_query('INSERT INTO {uc_product_stock} (sku, nid, active, stock, threshold) VALUES ("%s", %d, 1, %d, 5)', $product->fields->PRODUCTCODE, $node->nid, $product->fields->TotalQtyInStock);
+}
+
+/**
+ * Import volume discounts
+ **/
+function trueerp_set_volume_discounts($product, $is_update = 0){
+    if ($is_update){
+        $result = db_query('SELECT discount_sku_id, discount_id FROM {tilers_discounts_skus} WHERE sku = "%s"', $product->fields->PRODUCTCODE);
+        while ($data = db_fetch_object($result)){
+            db_query('DELETE FROM {tilers_discounts} WHERE discount_id = %d', $data->discount_id);
+            db_query('DELETE FROM {tilers_discounts_skus} WHERE discount_sku_id = %d', $data->discount_sku_id);
+        }
+    }
+    if ($product->fields->SellQty2Price != $product->fields->SellQty1Price){
+        db_query('INSERT INTO tilers_discounts (discount_id, name, short_description, description, qualifying_type, qualifying_amount, has_qualifying_amount_max, qualifying_amount_max, discount_type, discount_amount, requires_code, filter_type, has_role_filter, use_only_discounted_products_to_qualify, requires_single_product_to_qualify, required_product_type, max_times_applied, limit_max_times_applied, can_be_combined_with_other_discounts, add_to_cart, max_uses, max_uses_per_user, max_uses_per_code, has_activation, activates_on, has_expiration, expiration, is_active, weight, insert_timestamp) 
+        VALUES (NULL, "%s", "%s", "", 2, %d, 0, 0, 4, %d, 0, 3, 0, 0, 1, 3, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0)', $product->fields->PRODUCTCODE . "-" . $product->fields->SellQty2, $product->fields->PRODUCTCODE . "-" . $product->fields->SellQty2, $product->fields->SellQty2, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty2Price, 2)));
+
+        $last_id = db_last_insert_id('tilers_discounts', 'discount_id');
+        db_query('INSERT INTO tilers_discounts_skus (discount_sku_id, discount_id, sku, grouping)
+        VALUES (NULL, %d, "%s", 1)', $last_id, $product->fields->PRODUCTCODE);
+    }
+
+    if ($product->fields->SellQty3Price != $product->fields->SellQty1Price && $product->fields->SellQty3Price != $product->fields->SellQty2Price){
+        db_query('INSERT INTO tilers_discounts (discount_id, name, short_description, description, qualifying_type, qualifying_amount, has_qualifying_amount_max, qualifying_amount_max, discount_type, discount_amount, requires_code, filter_type, has_role_filter, use_only_discounted_products_to_qualify, requires_single_product_to_qualify, required_product_type, max_times_applied, limit_max_times_applied, can_be_combined_with_other_discounts, add_to_cart, max_uses, max_uses_per_user, max_uses_per_code, has_activation, activates_on, has_expiration, expiration, is_active, weight, insert_timestamp) 
+        VALUES (NULL, "%s", "%s", "", 2, %d, 0, 0, 4, %d, 0, 3, 0, 0, 1, 3, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0)', $product->fields->PRODUCTCODE . "-" . $product->fields->SellQty3, $product->fields->PRODUCTCODE . "-" . $product->fields->SellQty3, $product->fields->SellQty3, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty3Price, 2)));
+
+        $last_id = db_last_insert_id('tilers_discounts', 'discount_id');
+
+        db_query('INSERT INTO tilers_discounts_skus (discount_sku_id, discount_id, sku, grouping)
+        VALUES (NULL, %d, "%s", 1)', $last_id, $product->fields->PRODUCTCODE);
+    }
+}
+
+/**
+ * SET PRICES PER ROLE
+ **/
+function trueerp_set_prices_per_role($product, $nid, $is_update = 0){
+    if ($is_update){
+        db_query('UPDATE {uc_price_per_role_prices} SET price = "%s"
+                 WHERE nid = %d
+                 AND vid = %d
+                 AND rid = 5', number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2), $nid, $nid);
+        
+        db_query('UPDATE {uc_price_per_role_prices} SET price = "%s"
+                 WHERE nid = %d
+                 AND vid = %d
+                 AND rid = 4', number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2), $nid, $nid);
+    } else {
+        // Differents prices for differents user roles
+        // Wholesale rid = 4
+        // Distributor rid = 5
+        db_query('INSERT INTO uc_price_per_role_prices (rpid, vid, nid, rid, price) 
+        VALUES (NULL, %d, %d, 5, "%s")', $nid, $nid, number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2));
+    
+        db_query('INSERT INTO uc_price_per_role_prices (rpid, vid, nid, rid, price) 
+        VALUES (NULL, %d, %d, 4, "%s")', $nid, $nid, number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2));
+    }
+}
+
+/**
+ * SET PRICE PER ROLE OPTIONS
+ **/
+function trueerp_price_per_role_options($nid, $oid, $rid, $price, $is_update = 0){
+    
+    if ($is_update){
+        db_query('UPDATE {uc_price_per_role_option_prices} SET price = %d
+                 WHERE nid = %d
+                 AND oid = %d
+                 AND rid = %d', $price, $nid, $oid, $rid);
+    } else {
+        db_query('INSERT INTO {uc_price_per_role_option_prices} (opid, nid, oid, rid, price)
+        VALUES (NULL, %d, %d, %d, %d)', $nid, $oid, $rid, $price);
+    }
+}
+
+/**
+ * GET MASTER PRICE PER OPTION
+ **/
+function _trueerp_get_masterprice_option_per_role($nid, $rid){
+	$master_price = db_fetch_object(db_query('SELECT price FROM {uc_price_per_role_prices} WHERE nid = %d AND rid = %d', $nid, $rid));
+    return $master_price;
+}

@@ -1,0 +1,664 @@
+<?php
+//$Id: tilers_discounts.module,v 1.29.2.31 2010/12/30 19:37:21 jrust Exp $
+
+
+/**
+ * @file
+ * Discounts module for Ubercart 2.0+.
+ *
+ * Allows discount rules to be set up and applied to orders.
+ */
+module_load_include('inc', 'tilers_discounts', 'tilers_discounts.ca');
+
+define("QUALIFYING_TYPE_MINIMUM_PRICE", 1);
+define("QUALIFYING_TYPE_MINIMUM_QUANTITY", 2);
+
+define("DISCOUNT_TYPE_FREE_ITEMS", 1);
+define("DISCOUNT_TYPE_PERCENTAGE_OFF", 2);
+define("DISCOUNT_TYPE_FIXED_AMOUNT_OFF", 3);
+define("DISCOUNT_TYPE_FIXED_AMOUNT_OFF_PER_QUALIFYING_ITEM", 4);
+define("DISCOUNT_TYPE_PERCENTAGE_OFF_PER_QUALIFYING_ITEM", 5);
+
+define("FILTER_TYPE_NONE", 0);
+define("FILTER_TYPE_PRODUCTS", 1);
+define("FILTER_TYPE_TERMS", 2);
+define("FILTER_TYPE_SKUS", 3);
+define("FILTER_TYPE_CLASS", 4);
+define("FILTER_TYPE_AUTHORS", 5);
+
+define('DISCOUNT_FILTER_GROUPING_APPLICATION', 1);
+define('DISCOUNT_FILTER_GROUPING_QUALIFICATION', 2);
+
+define("ALL_PRODUCTS", "-1");
+define("ALL_TERMS", "-1");
+define("ALL_SKUS", "");
+define("ALL_CLASSES", "");
+define("ALL_ROLES", "-1");
+define("ALL_AUTHORS", "-1");
+
+define("IS_ACTIVE", TRUE);
+
+define("LINE_ITEM_KEY_NAME", "tilers_discounts");
+// (1 to follow subtotal)
+define("LINE_ITEM_WEIGHT", 1);
+define("CALCULATE_DISCOUNT_RESPONSE_LINE_ITEMS_KEY", "line_items");
+define("CALCULATE_DISCOUNT_RESPONSE_ERRORS_KEY", "errors");
+define("CALCULATE_DISCOUNT_RESPONSE_MESSAGES_KEY", "messages");
+
+// We alter the cart view form to display the price difference before and after discount
+function tilers_discounts_form_alter(&$form, &$form_state, $form_id) {
+
+	/*if ($form_id == "uc_cart_view_form"){
+		$cart_content = uc_cart_get_contents();
+		foreach ($form['items'] as $key => $item){
+			
+			if (is_array($form['items'][$key]) && isset($form['items'][$key]['nid'])){
+				
+				if (isset($cart_content[$key]->previous_price)){
+					$previous_total = $cart_content[$key]->previous_price * $form['items'][$key]['qty']['#default_value'];
+					if ($previous_total != $form['items'][$key]['#total']){
+						
+						$form['items'][$key]['total']['#value'] = '<span class="uc-price"><s class="old_price">$' . sprintf("%.2f", $previous_total) . '</s> $' . sprintf("%.2f",$form['items'][$key]['#total']) . '</span>';
+					
+					}
+				}
+			}
+		}
+	}*/
+	
+	
+}
+
+/*
+ * Modify the products prices in the cart
+ */
+function tilers_discounts_uc_cart_alter( &$items ) {
+	global $user;
+	if (!in_array('distributor', $user->roles) && !in_array('wholesale', $user->roles)){
+		foreach ($items as $key => $prod){
+			$sql = db_query('SELECT * FROM tilers_discounts d
+				LEFT JOIN tilers_discounts_skus ds ON ds.discount_id = d.discount_id
+				WHERE ds.sku = "%s"
+				AND d.qualifying_amount <= %d
+				AND (d.is_active=1)
+				AND (d.requires_code=0)
+				ORDER BY d.qualifying_amount DESC
+				LIMIT 1', $prod->model, $prod->qty);
+			while ($e = db_fetch_object($sql)){
+				$items[$key]->previous_price = $items[$key]->price;
+				$items[$key]->price = $items[$key]->price - $e->discount_amount;
+			}
+		}	
+	}
+}
+
+
+
+///////////////////////////////////////////////////////////////////
+//Drupal Hooks
+///////////////////////////////////////////////////////////////////
+
+/**
+ * Implementation of hook_init().
+ */
+function tilers_discounts_init() {
+  drupal_add_css(drupal_get_path('module', 'tilers_discounts')  . '/tilers_discounts.css');
+  // @see tilers_discounts_add_to_cart()
+  if (isset($_SESSION['tilers_discounts_after_add_to_cart'])) {
+    $nid = $_SESSION['tilers_discounts_after_add_to_cart']['nid'];
+    $added_qty = $_SESSION['tilers_discounts_after_add_to_cart']['qty'];
+    unset($_SESSION['tilers_discounts_after_add_to_cart']);
+
+    $items_to_add = $new_product_ids = array();
+
+    // Discounts are checked against the product(s) specified in Discount Application,
+    // not Discount Qualifications. Therefore, we have to look up the discount by its
+    // required_product_type field and check for discounts on the product(s) associated
+    // with it
+    $product = node_load($nid);
+    $result = db_query("SELECT * FROM {tilers_discounts} d
+                        WHERE d.add_to_cart = 1
+                          AND (d.has_activation = 0 OR d.activates_on < %d)
+                          AND (d.has_expiration = 0 OR d.expiration > %d)
+                          AND d.is_active = 1
+                          AND d.discount_type = %d
+                        ORDER BY weight", time(), time(), DISCOUNT_TYPE_FREE_ITEMS);
+    while ($discount = db_fetch_object($result)) {
+      if (in_array($product->nid, get_product_ids_for_discount_object($discount, DISCOUNT_FILTER_GROUPING_QUALIFICATION, TRUE))) {
+        $new_product_ids = get_product_ids_for_discount_object($discount, DISCOUNT_FILTER_GROUPING_APPLICATION, TRUE);
+        break;
+      }
+    }
+
+    if (!empty($new_product_ids)) {
+      foreach ($new_product_ids as $id) {
+        $potential_product = node_load($id);
+        // How many of the item are in the cart? We're only interested in node IDs right now.
+        $items = uc_cart_get_contents();
+        $qty = 0;
+        $source_qty = 0;
+        foreach ($items as $item) {
+          if ($item->nid == $potential_product->nid) {
+            $qty += $item->qty;
+          }
+          if ($item->nid == $product->nid) {
+            $source_qty += $item->qty;
+          }
+        }
+
+        $target_qty = $discount->discount_amount;
+        $qualifying_amount = $discount->qualifying_amount;
+        $times_applied = floor($qty / $target_qty);
+        $times_to_apply = ((($target_qty / $qualifying_amount) * $added_qty) / $target_qty);
+        // Make sure max_times_applied is respected
+        if ($times_applied < $discount->max_times_applied || $discount->max_times_applied == 0) {
+          // Calculate how many there should be and subtract what we already have
+          $to_add = ($target_qty * ($discount->max_times_applied ? min($discount->max_times_applied - $times_applied, $times_to_apply) : $times_to_apply));
+        }
+        // Don't add items immediately so that uc_cart_get_contents() will behave predictably.
+        if ($to_add > 0) {
+          $items_to_add[] = array('nid' => $potential_product->nid, 'qty' => $to_add, 'data' => array());
+        }
+      }
+    }
+
+    foreach ($items_to_add as $p) {
+      uc_cart_add_item($p['nid'], $p['qty'], $p['data'] + module_invoke_all('add_to_cart_data', $p), NULL, FALSE, FALSE, FALSE);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function tilers_discounts_perm() {
+  return array('configure discounts');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function tilers_discounts_menu() {
+  $items = array();
+
+  $items['admin/store/tilers_discounts'] = array(
+    'title' => 'Discounts',
+    'description' => 'Add and review discounts.',
+    'page callback' => 'tilers_discounts_admin_list',
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/store/tilers_discounts/list'] = array(
+    'title' => 'List',
+    'description' => 'View list of discounts.',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0,
+  );
+  $items['admin/store/tilers_discounts/add'] = array(
+    'title' => 'Add discount',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tilers_discounts_form'),
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 1,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/store/tilers_discounts/edit/%'] = array(
+    'title' => 'Edit discount rule',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tilers_discounts_form', 4),
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_CALLBACK,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/store/tilers_discounts/copy/%'] = array(
+    'page callback' => 'tilers_discounts_copy',
+    'page arguments' => array(4),
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_CALLBACK,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/store/tilers_discounts/delete/%'] = array(
+    'title' => 'Delete discount rule',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tilers_discounts_delete', 4),
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_CALLBACK,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/store/tilers_discounts/generate_codes/%'] = array(
+    'title' => 'Generate codes',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tilers_discounts_generate_codes_form', 4),
+    'access arguments' => array('configure discounts'),
+    'type' => MENU_CALLBACK,
+    'file' => 'tilers_discounts.admin.inc',
+    'weight' => 2,
+  );
+  $items['cart/checkout/tilers_discounts/calculate'] = array(
+    'page callback' => 'tilers_discounts_js_calculate',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/reports/tilers_discounts/all'] = array(
+    'title' => 'Ubercart discounts usage data',
+    'description' => 'View usage data for each Ubercart discount.',
+    'page callback' => 'tilers_discounts_report',
+    'access arguments' => array('access site reports'),
+    'file' => 'tilers_discounts.admin.inc',
+  );
+  $items['admin/reports/tilers_discounts/all/download'] = array(
+    'title' => 'Download Ubercart discounts usage data',
+    'description' => 'Download usage data for each Ubercart discount.',
+    'page callback' => 'tilers_discounts_report',
+    'access arguments' => array('access site reports'),
+    'file' => 'tilers_discounts.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/reports/tilers_discounts/discount'] = array(
+    'title' => 'Ubercart discount usage data',
+    'page callback' => 'tilers_discounts_report_for_discount',
+    'access arguments' => array('access site reports'),
+    'type' => MENU_CALLBACK,
+    'file' => 'tilers_discounts.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Returns product_ids for discount object.
+ * Note: this function correctly returns all products for term-based discounts.
+ *
+ * @param $discount object
+ * @param $exclude_all_products bool
+ * @param $grouping const
+ *
+ * @return array of product ids (nids)
+ */
+function get_product_ids_for_discount_object($discount, $grouping = DISCOUNT_FILTER_GROUPING_APPLICATION, $exclude_all_products = FALSE) {
+  $filter = $grouping == DISCOUNT_FILTER_GROUPING_APPLICATION ? $discount->filter_type : $discount->required_product_type;
+  switch ($filter) {
+    case FILTER_TYPE_PRODUCTS:
+      return get_product_ids_for_discount($discount->discount_id, $grouping, $exclude_all_products);
+
+    case FILTER_TYPE_TERMS:
+      $product_ids = array();
+
+      //Get products for terms
+      $terms = get_term_ids_for_discount($discount->discount_id, $grouping, $exclude_all_products);
+      $query = 'SELECT DISTINCT p.nid FROM {uc_products} p';
+      if (!empty($terms)) {
+        $query .= ' INNER JOIN {term_node} tn ON p.nid=tn.nid
+                    INNER JOIN {tilers_discounts_terms} dt ON tn.tid=dt.term_id
+                    WHERE dt.discount_id=%d';
+      }
+      $result = db_query($query, $discount->discount_id);
+      while ($row = db_fetch_object($result)) {
+        $product_ids[] = $row->nid;
+      }
+      return $product_ids;
+
+    case FILTER_TYPE_SKUS:
+
+      $skus = get_skus_for_discount($discount->discount_id, $grouping, $exclude_all_products);
+      $query = 'SELECT DISTINCT p.nid FROM {uc_products} p';
+      if (!empty($skus)) {
+        $query .= ' INNER JOIN {tilers_discounts_skus} ds ON p.model=ds.sku
+                    WHERE ds.discount_id=%d';
+      }
+
+      $result = db_query($query, $discount->discount_id);
+      while ($row = db_fetch_object($result)) {
+        $product_ids[] = $row->nid;
+      }
+      return $product_ids;
+
+    case FILTER_TYPE_CLASS:
+      $classes = get_classes_for_discount($discount->discount_id, $grouping, $exclude_all_products);
+      $query = 'SELECT DISTINCT n.nid FROM {node} n';
+      if (!empty($classes)) {
+          $query .= ' INNER JOIN {tilers_discounts_classes} dcl ON n.type=dcl.class
+                      WHERE dcl.discount_id=%d';
+      }
+      $result = db_query($query, $discount->discount_id);
+      while ($row = db_fetch_object($result)) {
+        $product_ids[] = $row->nid;
+      }
+      return $product_ids;
+
+    case FILTER_TYPE_AUTHORS:
+      $authors = get_author_ids_for_discount($discount->discount_id, $grouping, $exclude_all_products);
+      $query = 'SELECT DISTINCT n.nid FROM {node} n';
+      if (!empty($authors)) {
+          $query .= ' INNER JOIN {tilers_discounts_authors} dau ON n.uid=dau.author_id
+                      WHERE dau.discount_id=%d';
+      }
+      $result = db_query($query, $discount->discount_id);
+      while ($row = db_fetch_object($result)) {
+        $product_ids[] = $row->nid;
+      }
+      return $product_ids;
+  }
+  return array();
+}
+
+/**
+ * Returns product_ids for discount.
+ * Note: this function does not check filter_type so a discount with filter_type other than
+ *    FILTER_TYPE_PRODUCTS will return no values.
+ *
+ * @param $discount_id
+ * @param $grouping
+ * @param $exclude_all_products
+ *
+ * @return array of product ids (nids)
+ */
+function get_product_ids_for_discount($discount_id, $grouping, $exclude_all_products = FALSE) {
+  $query = "SELECT product_id FROM {tilers_discounts_products} WHERE discount_id = %d AND grouping = %d";
+  $args = array($discount_id, $grouping);
+  if ($exclude_all_products) {
+    $query .= ' AND product_id <> %d';
+    $args[] = ALL_PRODUCTS;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["product_id"];
+  }
+  return $ids;
+}
+
+/**
+ * Returns term_ids for discount.
+ */
+function get_term_ids_for_discount($discount_id, $grouping, $exclude_all_terms = FALSE) {
+  $query = "SELECT term_id FROM {tilers_discounts_terms} WHERE discount_id = %d AND grouping = %d";
+  $args = array($discount_id, $grouping);
+  if ($exclude_all_products) {
+    $query .= ' AND term_id <> %d';
+    $args[] = ALL_TERMS;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["term_id"];
+  }
+  return $ids;
+}
+
+/**
+ * Returns SKUs for discount.
+ */
+function get_skus_for_discount($discount_id, $grouping, $exclude_all_skus = FALSE) {
+  $query = "SELECT sku FROM {tilers_discounts_skus} WHERE discount_id = %d AND grouping = %d";
+  $args = array($discount_id, $grouping);
+  if ($exclude_all_products) {
+    $query .= ' AND sku <> "%s"';
+    $args[] = ALL_SKUS;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["sku"];
+  }
+  return $ids;
+}
+
+/**
+ * Returns Product Class names for discount.
+ */
+function get_classes_for_discount($discount_id, $grouping, $exclude_all_classes = FALSE) {
+  $query = "SELECT class FROM {tilers_discounts_classes} WHERE discount_id = %d AND grouping = %d";
+  $args = array($discount_id, $grouping);
+  if ($exclude_all_products) {
+    $query .= ' AND class <> "%s"';
+    $args[] = ALL_CLASSES;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["class"];
+  }
+  return $ids;
+}
+
+/**
+ * Returns author_ids for discount.
+ */
+function get_author_ids_for_discount($discount_id, $grouping, $exclude_all_authors = FALSE) {
+  $query = "SELECT author_id FROM {tilers_discounts_authors} WHERE discount_id = %d AND grouping = %d";
+  $args = array($discount_id, $grouping);
+  if ($exclude_all_products) {
+    $query .= ' AND author_id <> %d';
+    $args[] = ALL_AUTHORS;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["author_id"];
+  }
+  return $ids;
+}
+
+/**
+ * Returns codes for discount.
+ */
+function get_codes_for_discount($discount_id) {
+  $codes = array();
+  $result = db_query('SELECT code FROM {tilers_discounts_codes} WHERE discount_id = %d', $discount_id);
+  while ($row = db_fetch_array($result)) {
+    $codes[] = $row['code'];
+  }
+  return $codes;
+}
+
+/**
+ * Deletes all tilers_discounts_codes rows for a discount.
+ */
+function tilers_discounts_codes_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_codes} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_products rows for a discount.
+ */
+function tilers_discounts_products_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_products} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_terms rows for a discount.
+ */
+function tilers_discounts_terms_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_terms} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_skus rows for a discount.
+ */
+function tilers_discounts_skus_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_skus} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_classes rows for a discount.
+ */
+function tilers_discounts_classes_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_classes} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_authors rows for a discount.
+ */
+function tilers_discounts_authors_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_authors} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+/**
+ * Deletes all tilers_discounts_roles rows for a discount.
+ */
+function tilers_discounts_roles_delete($discount_id) {
+  $query = "DELETE FROM {tilers_discounts_roles} WHERE discount_id=%d";
+  db_query($query, $discount_id);
+}
+
+
+/**
+ * Returns role_ids for discount.
+ */
+function get_role_ids_for_discount($discount_id, $exclude_all_roles = FALSE) {
+  $query = "SELECT role_id FROM {tilers_discounts_roles} WHERE discount_id = %d";
+  $args = array($discount_id);
+  if ($exclude_all_products) {
+    $query .= ' AND role_id <> %d';
+    $args[] = ALL_ROLES;
+  }
+
+  $result = db_query($query, $args);
+  $ids = array();
+  while ($row = db_fetch_array($result)) {
+    $ids[] = $row["role_id"];
+  }
+  return $ids;
+}
+
+///////////////////////////////////////////////////////////////////
+//Database operations
+///////////////////////////////////////////////////////////////////
+
+/**
+ * Deletes a tilers_discounts row and all dependencies.
+ */
+function tilers_discounts_delete_all($discount) {
+  foreach (module_implements('uc_discount') as $module) {
+    $function = $module . '_uc_discount';
+    $function('delete', $discount);
+  }
+  db_query("DELETE FROM {tilers_discounts_uses} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_products} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_terms} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_skus} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_roles} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_codes} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts_authors} WHERE discount_id=%d", $discount->discount_id);
+  db_query("DELETE FROM {tilers_discounts} WHERE discount_id=%d", $discount->discount_id);
+}
+
+/**
+ * Loads a discount
+ */
+function tilers_discounts_load($discount_id) {
+  $discount = db_fetch_object(db_query("SELECT * FROM {tilers_discounts} WHERE discount_id=%d", $discount_id));
+   foreach (module_implements('uc_discount') as $module) {
+     $function = $module . '_uc_discount';
+     $function('load', $discount);
+   }
+  return $discount;
+}
+
+
+
+///////////////////////////////////////////////////////////////////
+//Misc. helper functions
+///////////////////////////////////////////////////////////////////
+
+/**
+ * Returns a string list of codes into an array of codes
+ */
+function tilers_discounts_codes_to_array($codes_string) {
+  $codes = array();
+  $raw_codes = explode("\n", $codes_string);
+  foreach ($raw_codes as $raw_code) {
+    $code = trim($raw_code);
+    if (!empty($code)) {
+      $codes[] = $code;
+    }
+  }
+
+  return $codes;
+}
+
+/**
+ * Create a codes string from passed codes array.
+ * Note: returns "" if passed array is null
+ */
+function tilers_discounts_codes_to_str($codes) {
+  return implode("\n", (array) $codes);
+}
+
+/**
+ * Returns an array of qualifying types with descriptions.
+ */
+function qualifying_type_options() {
+  static $options = NULL;
+
+  if (is_null($options)) {
+    $options = array(QUALIFYING_TYPE_MINIMUM_PRICE => t("Minimum price"),
+      QUALIFYING_TYPE_MINIMUM_QUANTITY => t("Minimum quantity"),
+    );
+  }
+
+  return $options;
+}
+
+function qualifying_type_name($qualifying_type) {
+  $options = qualifying_type_options();
+  return $options[$qualifying_type];
+}
+
+/**
+ * Returns an array of discount types with descriptions.
+ */
+function discount_type_options() {
+  static $options = NULL;
+
+  if (is_null($options)) {
+    $options = array(
+      DISCOUNT_TYPE_PERCENTAGE_OFF => t("Percentage off"),
+      DISCOUNT_TYPE_PERCENTAGE_OFF_PER_QUALIFYING_ITEM => t("Percentage off per qualifying item"),
+      DISCOUNT_TYPE_FIXED_AMOUNT_OFF => t("Fixed amount off"),
+      DISCOUNT_TYPE_FIXED_AMOUNT_OFF_PER_QUALIFYING_ITEM => t("Fixed amount off per qualifying item"),
+      DISCOUNT_TYPE_FREE_ITEMS => t("Free items"),
+    );
+  }
+
+  return $options;
+}
+
+function discount_type_name($discount_type) {
+  $options = discount_type_options();
+  return $options[$discount_type];
+}
+
+function discount_amount_formatted($discount) {
+  if (in_array($discount->discount_type, array(DISCOUNT_TYPE_PERCENTAGE_OFF, DISCOUNT_TYPE_PERCENTAGE_OFF_PER_QUALIFYING_ITEM))) {
+    return ($discount->discount_amount * 100) . '%';
+  }
+  elseif (in_array($discount->discount_type, array(DISCOUNT_TYPE_FIXED_AMOUNT_OFF, DISCOUNT_TYPE_FIXED_AMOUNT_OFF_PER_QUALIFYING_ITEM))) {
+    return uc_currency_format($discount->discount_amount);
+  }
+  else {
+    return $discount->discount_amount;
+  }
+}
+
+function tilers_discounts_views_api() {
+  return array('api' => 2);
+}
+
+function tilers_discounts_add_to_existing_map_number_value(&$a, $key, $value) {
+  $a[$key] = (array_key_exists($key, $a)) ? $a[$key] + $value : $value;
+}

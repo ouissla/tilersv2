@@ -1,0 +1,12 @@
+name = Ubercart Price List
+description = The module will allow you to setup instances of price lists for Ubercart, and apply those price lists to users and user roles.
+package = Ubercart - extra
+version = VERSION
+core = 6.x
+
+; Information added by drupal.org packaging script on 2010-11-24
+version = "6.x-1.0-beta1"
+core = "6.x"
+project = "uc_pricelist"
+datestamp = "1290633370"
+

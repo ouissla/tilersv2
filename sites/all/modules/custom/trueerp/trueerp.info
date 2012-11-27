@@ -1,0 +1,7 @@
+name = TrueERP
+description = TrueERP integration
+package = "1-Tiler"
+core=6.x
+version = "6.x-1.0"
+core = "6.x"
+

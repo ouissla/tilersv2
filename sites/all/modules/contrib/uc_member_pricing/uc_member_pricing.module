@@ -1,0 +1,326 @@
+<?php
+
+/**
+ * uc_member_pricing.module
+ * ------------------------------------
+ *
+ * This module provides users with the 'manage prices' role the ability to
+ * specify prices ( actual or percentage offset from product sell price ) for
+ * specific users and all users of specified roles. on products.
+ *
+ * > When a site visitor logs in, special pricing goes into effect.
+ *
+ * > User prices override role prices, which override base product sell prices.
+ *
+ * > If user has multiple roles with special pricing, then the lowest price is
+ *   used.
+ *
+ * > Display individual prices on product view instead of base sell price.
+ *
+ */
+
+//------------------------------------------------------------------------------
+// Constants
+//------------------------------------------------------------------------------
+
+/**
+ * Module permissions.
+ */
+define( 'UCMP_PERM_MANAGE_PRICES', 'manage prices' );
+
+/**
+ * Pricing rule types.
+ */
+define( 'UCMP_TYPE_USER', 'user' );
+define( 'UCMP_TYPE_ROLE', 'role' );
+
+//------------------------------------------------------------------------------
+// Drupal hooks
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_perm().
+ *
+ * @see http://api.drupal.org/api/function/hook_perm/6
+ */
+function uc_member_pricing_perm( ) {
+
+  return array(
+    UCMP_PERM_MANAGE_PRICES
+  );
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_menu().
+ *
+ * Implemented pages:
+ *
+ *  node/{nid}/edit/prices/add            ( local task )
+ *  node/{nid}/edit/prices/edit/{ppid}    ( local task )
+ *  node/{nid}/edit/prices/delete/{ppid}  ( local task )
+ *
+ *  where {nid} is a product node.
+ *
+ * @see http://api.drupal.org/api/function/hook_menu/6
+ */
+function uc_member_pricing_menu( ) {
+  $items = array();
+
+  $items['node/%node/edit/prices'] = array(
+    'title' => 'Prices',
+    'page callback' => 'uc_member_pricing_list_prices',
+    'page arguments' => array(1),
+    'access callback' => 'uc_member_pricing_admin_access',
+    'access arguments' => array(1),
+    'weight' => -7,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_member_pricing.admin.inc',
+  );
+
+  $items['node/%node/edit/prices/add'] = array(
+    'title' => 'Add product price rule',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_member_pricing_add_price_form', 1),
+    'access callback' => 'uc_member_pricing_admin_access',
+    'access arguments' => array(1),
+    'weight' => -8,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_member_pricing.admin.inc',
+  );
+
+  $items['node/%node/edit/prices/edit/%member_price_rule'] = array(
+    'title' => 'Edit product price rule',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_member_pricing_edit_price_form', 1, 5),
+    'access callback' => 'uc_member_pricing_admin_access',
+    'access arguments' => array(1),
+    'weight' => -6,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_member_pricing.admin.inc',
+  );
+
+  $items['node/%node/edit/prices/delete/%member_price_rule'] = array(
+    'title' => 'Delete product price rule',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_member_pricing_delete_price_form', 1, 5),
+    'access callback' => 'uc_member_pricing_admin_access',
+    'access arguments' => array(1),
+    'weight' => -4,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_member_pricing.admin.inc',
+  );
+
+  return $items;
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_theme().
+ *
+ * @see http://api.drupal.org/api/function/hook_theme/6
+ */
+function uc_member_pricing_theme( ) {
+  return array(
+    'uc_member_pricing_rule_listing' => array(
+      'arguments' => array( 'node' => NULL, 'price_rules' => NULL ),
+      'file'      => 'uc_member_pricing.admin.inc',
+    ),
+  );
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * @see http://api.drupal.org/api/function/hook_nodeapi/6
+ */
+function uc_member_pricing_nodeapi( &$node, $op, $a3 = NULL, $a4 = NULL ) {
+  global $user;
+
+  switch ( $op ) {
+    case 'load':
+      if ( uc_product_is_product( $node ) && arg(2) != 'edit' ) {
+        module_load_include( 'inc', 'uc_member_pricing', 'uc_member_pricing.api' );
+
+        $price_rules = uc_member_pricing_select_rules(
+          array( 'nid' => $node->nid ),
+          TRUE
+        );
+
+        if ( count( $price_rules ) ) {
+          // Separate into type sections.
+          $role_rules = array( );
+          $user_rules = array( );
+
+          foreach ( $price_rules as $rule ) {
+            switch ( $rule[ 'type' ] ) {
+              case UCMP_TYPE_ROLE:
+                $role_rules[ $rule[ 'xid' ] ] = $rule;
+                break;
+
+              case UCMP_TYPE_USER:
+                $user_rules[ $rule[ 'xid' ] ] = $rule;
+                break;
+            }
+          }
+
+          // Find individual user price.
+          if ( array_key_exists( $user->uid, $user_rules ) ) {
+            $member_price = uc_member_pricing_calculate_price( $node->sell_price, $user_rules[ $user->uid ][ 'price' ] );
+          }
+          // Find lowest user role price.
+          else {
+            foreach ( $user->roles as $rid => $name ) {
+              $role_price = uc_member_pricing_calculate_price( $node->sell_price, $role_rules[ $rid ][ 'price' ] );
+
+              if ( is_null( $lowest_price ) || $role_price < $lowest_price ) {
+                $lowest_price = $role_price;
+              }
+
+              $member_price = $lowest_price;
+            }
+          }
+
+          // Set new product price for this site member.
+          if ( !is_null( $member_price ) ) {
+            $node->sell_price = max( $member_price, 0 );
+          }
+        }
+      }
+      break;
+
+    case 'delete':
+      // Remove all member prices for products being deleted.
+      module_load_include( 'inc', 'uc_member_pricing', 'uc_member_pricing.api' );
+
+      $price_rules = uc_member_pricing_select_rules(
+        array( 'nid' => $node->nid ),
+        TRUE
+      );
+
+      foreach ( $price_rules as $rule ) {
+        uc_member_pricing_remove_rule( $rule );
+      }
+  }
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_user().
+ *
+ * @see http://api.drupal.org/api/function/hook_user/6
+ */
+function uc_member_pricing_user($op, &$edit, &$account, $category = NULL) {
+
+  switch ($op) {
+    case 'delete':
+      // Clear all user rules when the corresponding user is deleted.
+      module_load_include( 'inc', 'uc_member_pricing', 'uc_member_pricing.api' );
+
+      $pricing_rules = uc_member_pricing_select_rules(
+        array(
+          'type' => UCMP_TYPE_USER,
+          'xid'  => $account->uid,
+        ),
+        TRUE
+      );
+
+      foreach ($pricing_rules as $rule) {
+        uc_member_pricing_remove_rule($rule);
+      }
+      break;
+  }
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Implementation of hook_form_alter().
+ *
+ * @see http://api.drupal.org/api/function/hook_form_alter/6
+ */
+function uc_member_pricing_form_alter(&$form, $form_state, $form_id) {
+
+  if ($form_id == 'user_admin_role') {
+    $form['#submit'][] = 'uc_member_pricing_user_admin_role_submit';
+  }
+}
+
+//------------------------------------------------------------------------------
+// Menu access handlers
+//------------------------------------------------------------------------------
+
+function uc_member_pricing_admin_access( $node ) {
+  if ( uc_product_is_product( $node ) && user_access( UCMP_PERM_MANAGE_PRICES ) ) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+//------------------------------------------------------------------------------
+// Form handlers
+//------------------------------------------------------------------------------
+
+function uc_member_pricing_user_admin_role_submit($form, &$form_state) {
+
+  if ($form_state['values']['op'] == t('Delete role')) {
+    // Clear all role based rules when the corresponding role is deleted.
+    module_load_include('inc', 'uc_member_pricing', 'uc_member_pricing.api');
+
+    $pricing_rules = uc_member_pricing_select_rules(
+      array(
+        'type' => UCMP_TYPE_ROLE,
+        'xid'  => $form_state['values']['rid'],
+      ),
+      TRUE
+    );
+
+    foreach ($pricing_rules as $rule) {
+      uc_member_pricing_remove_rule($rule);
+    }
+  }
+}
+
+//------------------------------------------------------------------------------
+// Internal utilities
+//------------------------------------------------------------------------------
+
+function member_price_rule_load( $ppid ) {
+  module_load_include( 'inc', 'uc_member_pricing', 'uc_member_pricing.api' );
+  return uc_member_pricing_select_rules( array( 'ppid' => $ppid ) );
+}
+
+//------------------------------------------------------------------------------
+
+function uc_member_pricing_calculate_price( $price, $adjustment ) {
+
+  $offset = 0;
+
+  // Check for numeric price.  ( No offset! )
+  if ( preg_match( '/^[\d\.]+$/', $adjustment ) ) {
+    return $adjustment;
+  }
+  // Check for numeric offset.
+  elseif ( preg_match( '/^(\+|\-)?([\d\.]+)$/', $adjustment, $matches ) ) {
+    $op     = $matches[ 1 ];
+    $offset = $matches[ 2 ];
+  }
+  // Check for percentage offset.
+  elseif ( preg_match( '/^(\+|\-)?([\d\.]+)%$/', $adjustment, $matches ) ) {
+    $op     = $matches[ 1 ];
+    $offset = $price * ( $matches[ 2 ] / 100 );
+  }
+
+  if ( !$op || $op == '+' ) {
+    return $price + $offset;
+  }
+
+  return $price - $offset;
+}
+
+//------------------------------------------------------------------------------

@@ -1,0 +1,39 @@
+<?php
+// $Id$
+
+function tilers_wishlist_schema() {
+  $schema = array();
+  
+  $schema['tilers_wishlist'] = array(
+      'description' => t('Store user wishlists'),
+      'fields' => array(
+        'uid' => array(
+          'description' => t('User ID'),
+          'type' => 'int',
+          'not null' => TRUE,
+        ),
+        'wishlist' => array(
+          'description' => t('Serialized array containing products id'),
+          'type' => 'varchar',
+          'length' => '1000',
+          'not null' => TRUE,
+        ),
+        'expire' => array(
+          'description' => t('Date created'),
+          'type' => 'int',
+          'not null' => TRUE,
+        ),
+      ),
+    );
+
+
+  return $schema;
+}
+
+function tilers_wishlist_install() {
+  drupal_install_schema('tilers_wishlist');
+}
+
+function tilers_wishlist_uninstall() {
+  drupal_uninstall_schema('tilers_wishlist');
+}

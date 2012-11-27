@@ -1,0 +1,144 @@
+<?php
+
+/*
+ * We had a multiple select list of nodequeue in the term edit form
+ */
+function tilers_ttn_form_alter(&$form, &$form_state, $form_id) {
+
+    if ($form_id == 'taxonomy_form_term'){
+
+        $sql = db_query('SELECT qid, title FROM {nodequeue_queue} ORDER BY qid ASC');
+        $options = array();
+        while ($queue = db_fetch_object($sql)){
+            $options[$queue->qid] = $queue->title;
+        }
+
+        if (!empty($options)){
+
+            $term_to_nodequeue = db_fetch_object(db_query('SELECT qids FROM term_to_nodequeue WHERE tid = %d', $form['#term']['tid']));
+            $default_values = array();
+
+            if (is_object($term_to_nodequeue)){                
+                $default_values = explode('|', $term_to_nodequeue->qids);
+            }
+            
+            $form['advanced']['nodequeues'] = array(
+                '#type'  => 'select',
+                '#title' => 'Related nodequeues',
+                '#multiple' => TRUE,
+                '#options' => $options
+            );
+            if (!empty($default_values)){
+                $form['advanced']['nodequeues']['#default_value'] = $default_values;
+            }
+
+            $form['#submit'][1] = 'tilers_ttn_term_submit';
+        }
+
+    }
+
+}
+
+/*
+ * This complementary submit function to the term edit form allow to update term_to_nodequeue table
+ * which defines which nodequeues are related to a term
+ */
+function tilers_ttn_term_submit($form, &$form_state){
+    $qid_values = implode("|", $form_state['values']['nodequeues']);
+    
+    $term_to_nodequeue = db_fetch_object(db_query('SELECT * FROM term_to_nodequeue WHERE tid = %d', $form_state['values']['tid']));
+
+    if (!is_object($term_to_nodequeue)){
+        db_query('INSERT INTO {term_to_nodequeue} (tid, qids) VALUES (%d, "%s")', $form_state['values']['tid'], $qid_values);
+    } elseif ($term_to_nodequeue->qids != $qid_values){
+        db_query('UPDATE {term_to_nodequeue} SET qids = "%s" WHERE tid = %d', $qid_values, $form_state['values']['tid']);
+    }
+}
+
+/*
+ * Implementation of hook_nodeapi to add nodes to queue
+ */
+function tilers_ttn_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'insert':
+        tilers_ttn_update_nodequeue($node->nid, $node->taxonomy);
+
+    break;
+    case 'update':
+        tilers_ttn_update_nodequeue($node->nid, $node->taxonomy);
+    break;
+  }
+}
+
+
+function tilers_ttn_update_nodequeue($nid, $taxo){
+    if (!empty($taxo)){
+	
+        foreach ($taxo as $term){
+	
+			if (is_object($term)){
+				if (in_array($term->vid, array(3,4,5,6,7,8))){
+
+                    $nodequeue_ids = db_fetch_object(db_query('SELECT qids FROM {term_to_nodequeue} WHERE tid = %d', $term->tid));
+
+                    if (is_object($nodequeue_ids)){
+                        $arr_qids = explode('|', $nodequeue_ids->qids);
+
+                        if (!empty($arr_qids)){
+
+                            // We get the list of nodequeues containing this node
+                            $sql = db_query('SELECT qid FROM {nodequeue_nodes} WHERE nid = %d', $nid);
+                            $arr_current_qids = array();
+                            while ($data = db_fetch_object($sql)){
+                                $arr_current_qids[] = $data->qid;
+                            }
+                            
+                            // For each current nodequeue containin the node, we check if the qid is still in the list of nodequeue to add the node to
+                            foreach ($arr_current_qids as $current_qid){
+                                if (!in_array($current_qid, $arr_qids)){
+                                    // we remove the node from the nodequeue
+                                    nodequeue_subqueue_remove_node($current_qid, $nid);
+                                    $sql = db_query('SELECT * FROM nodequeue_queue WHERE qid = %d', $current_qid);
+                                    $queue = db_fetch_object($sql);
+                                    drupal_set_message("The product has been removed from the nodequeue : " . l($queue->title, 'admin/content/nodequeue/' . $current_qid . '/view'));
+                                }
+                            }
+
+                            foreach($arr_qids as $qid){
+                                // If the node is not already in the nodequeue, we add it
+                                if (!nodequeue_get_subqueue_position($qid, $nid)){
+                                    tilers_ttn_add_to_queue($qid, $nid);
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+
+}
+
+/**
+ * Add a node to a nodequeue
+ * params :
+ *    - $queue_id : The id of the queue we want to add the node to
+ *    - $nid : The id of the node
+ **/
+function tilers_ttn_add_to_queue($queue_id, $nid){
+    if (!nodequeue_get_subqueue_position($queue_id, $nid)){
+        $sql = db_query('SELECT * FROM nodequeue_queue WHERE qid = %d', $queue_id);
+        $queue = db_fetch_object($sql);
+
+        $sql_count = db_query('SELECT count(*) AS count FROM nodequeue_nodes WHERE sqid = %d', $queue_id);
+        $count = db_fetch_object($sql_count);
+
+        $sql = db_query('SELECT * FROM nodequeue_subqueue WHERE sqid = %d', $queue_id);
+        $subqueue = db_fetch_object($sql);
+        $subqueue->count = $count->count;
+
+        nodequeue_subqueue_add($queue, $subqueue, $nid);
+        drupal_set_message("The product has been added to the nodequeue : " . l($queue->title, 'admin/content/nodequeue/' . $queue->qid . '/view'));
+    }
+}

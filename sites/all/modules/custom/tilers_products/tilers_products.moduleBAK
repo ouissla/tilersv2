@@ -1,0 +1,484 @@
+<?php
+
+/**
+ * Hook_menu implementation
+ **/
+function tilers_products_menu(){
+  $items['admin/content/advancednode'] = array(
+    'title'           => 'Advanced content list', 
+    'page callback'   => 'tilers_advanced_node_render',
+    'access callback' => TRUE, 
+    'type'            => MENU_ITEM,
+  );
+  $items['variations/%'] = array(
+    'title'           => 'Edit variations', 
+    'page callback'   => 'tilers_variations_display',
+    'page arguments'  => array(1),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['optionredirect/%'] = array(
+    'title'           => 'Option redirect', 
+    'page callback'   => 'optionredirect',
+    'page arguments'  => array(1),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['show-in-modal/%/%'] = array(
+    'title'           => 'Show description in a modal box', 
+    'page callback'   => 'tilers_products_show_in_modal',
+    'page arguments'  => array(1, 2),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['createvariation/%/%'] = array(
+    'title'           => 'Create a variation on demand', 
+    'page callback'   => 'tilers_products_create_variation',
+    'page arguments'  => array(1, 2),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['addtocart/%'] = array(
+    'page callback'   => 'tilers_product_add_to_cart',
+    'page arguments'  => array(1),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['testcron'] = array(
+    'title'           => 'test', 
+    'page callback'   => 'testcron',
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function testcron(){
+  watchdog('TrueERP', 'Test of the cron success');
+}
+
+function optionredirect($oid){
+  // Remove previous url variable
+  $exploded = explode('?variation=', $_SERVER['HTTP_REFERER']);
+  drupal_goto($exploded[0] . '?variation=' . $oid);
+}
+
+function tilers_advanced_node_render(){
+  return views_embed_view('advanced_content_list', 'page_1');
+}
+
+function tilers_product_add_to_cart ($nid){
+  uc_cart_add_item($nid, 1, NULL, NULL);
+  drupal_goto($_SERVER['HTTP_REFERER']);
+}
+
+function tilers_products_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'delete':
+      db_query('DELETE FROM {uc_product_stock} WHERE nid = %d', $node->nid);
+      db_query('DELETE FROM {uc_price_per_role_prices} WHERE nid = %d', $node->nid);
+		
+      // DELETIN DISCOUNTS
+      $adustements = db_query('SELECT model FROM {uc_product_adjustments} WHERE nid = %d', $node->nid);
+      while ($adjustment = db_fetch_object($adustements)){
+	$results = db_query('SELECT * FROM {tilers_discounts_skus}
+	  WHERE sku = "%s"', $node->model);
+	while ($data = db_fetch_object($results)){
+	  db_query('DELETE FROM {tilers_discounts_skus} WHERE sku = "%s"', $node->model);
+	  db_query('DELETE FROM {tilers_discounts} WHERE discount_id = %d', $data->discount_sku_id);
+	}
+      }
+		
+      // DELETING PRICE PER ROLE OPTIONS
+      db_query('DELETE FROM {uc_price_per_role_option_prices}
+      WHERE nid = %d', $node->nid);
+      
+      // DELETING ENTRY IN TILERS_ERP_PRODUCTS
+      // DELETING ATTRIBUTE OPTIONS
+      // recuperer les options en premier, puis delete les entrees pour les variation
+      $options = db_query('SELECT oid FROM {uc_product_options} WHERE nid = %d', $node->nid);
+      while ($option = db_fetch_object($options)){
+	      db_query('DELETE FROM {tilers_erp_products}
+	      WHERE oid = %d', $option->oid);
+	      
+	      db_query('DELETE FROM {uc_attribute_options} WHERE oid = %d', $option->oid);
+      }
+      db_query('DELETE FROM {tilers_erp_products} WHERE sku = "%s"', $node->model);
+		
+		
+    break;
+    case 'view':
+      // Don't change the title for views
+      $node_path = drupal_get_path_alias('node/' . $node->nid);
+      $uri = $_SERVER['REQUEST_URI'];
+      if ($uri == '/' . $node_path){
+
+        // get taxonomy
+        // get associated nodequeue
+        // get nodequeue url
+        if (!empty($node->taxonomy)){
+  	      $term_obj = reset($node->taxonomy);
+  	      $term = taxonomy_get_term($term_obj->tid);
+  	      $nodequeue_ids = db_fetch_object(db_query('SELECT qids FROM {term_to_nodequeue} WHERE tid = %d', $term->tid));
+        	if (is_object($nodequeue_ids)){
+        	  $nodequeue_ids_array = explode('|', $nodequeue_ids->qids);
+        	  
+        	  $qid = reset($nodequeue_ids_array);
+        	  
+        	  $display_options = db_fetch_object(db_query('SELECT vd.display_options FROM {views_display} vd
+        					    LEFT JOIN {views_view} vv ON vv.vid = vd.vid
+        					    WHERE vv.name = "%s"
+        					    AND vd.display_title = "page"', "nodequeue_" . $qid));
+        	  
+        	  $options = unserialize($display_options->display_options);
+        	  
+        	  menu_set_active_item($options['path']);
+        	}
+        }
+        
+        if ($node->field_product_group_title[0]['value'] != ''){
+    	     drupal_set_title($node->field_product_group_title[0]['value']);
+        }
+
+        $stock = uc_stock_level($node->model);
+        $node->stock = $stock;
+      }
+      
+      break; 
+    
+    case 'update':
+      if ($node->type == 'variation'){
+	$master = db_fetch_object(db_query('SELECT nid FROM {uc_product_options}
+			  WHERE oid = %d LIMIT 1', $node->field_variation_oid[0]['value']));
+	if (is_object($master)){
+	  drupal_goto(drupal_get_path_alias('node/' . $master->nid), array('variation' => $node->field_variation_oid[0]['value']));
+	}
+      }
+      break;
+  }
+}
+
+function tilers_products_back_to_list($node){
+    foreach ($node->taxonomy as $term){
+        if ($term->vid == 6){
+            $nodequeues = db_fetch_object(db_query('SELECT qids FROM {term_to_nodequeue} WHERE tid = %d', $term->tid));
+            $arr_qids = explode('|', $nodequeues->qids);
+            
+            $qid = end($arr_qids);
+            
+            if (is_numeric($qid)){
+                $sql = db_query('SELECT vd.display_options
+                    FROM views_display vd
+                    LEFT JOIN views_view vv ON vv.vid = vd.vid
+                    WHERE vv.name = "%s"
+                    AND vd.id = "page"', "nodequeue_" . $qid);
+                
+                $result = db_fetch_object($sql);
+                $display_options = unserialize($result->display_options);
+                
+                return l("Go back to product list", $display_options['path']);
+            }
+        }
+    }
+}
+
+
+function tilers_variations_display($nid){
+  $node = node_load($nid);
+  if (is_object($node)){
+    
+    $query = db_query('SELECT uao.oid, uao.name FROM uc_attribute_options uao
+		      LEFT JOIN uc_product_options upo ON uao.oid = upo.oid
+		      WHERE upo.nid = %d', $nid);
+    
+    $output = '<table>
+		<tr>
+		  <th>OID</th>
+		  <th>Name</th>
+		  <th>Actions</th>
+		</tr>';
+		
+    while ($data = db_fetch_object($query)){
+      
+      $var_nid = db_fetch_object(db_query('SELECT nid FROM content_type_variation WHERE field_variation_oid_value = %d', $data->oid));
+      
+      $output .= '<tr>';
+      $output .= '<td>' . $data->oid . '</td>';
+      $output .= '<td>' . $data->name . '</td>';
+      if (is_object($var_nid)) {
+	$output .= '<td><a href="/node/' . $var_nid->nid . '/edit?variation=' . $data->oid . '">Edit</a></td>';
+      } else {
+	$output .= '<td>' . l('Edit', 'node/add/variation/' . $data->oid) . '</td></tr>';
+      }
+    }
+    
+    $output .= '</table>';
+    
+    return $output;
+  }
+  return 'No variations for this product';
+}
+
+/**
+ * HOOK_form_alter
+ **/
+function tilers_products_form_alter(&$form, &$form_state, $form_id){
+  global $user;
+  if ($form_id == 'variation_node_form'){
+    if (arg(3) != '' && is_numeric(arg(3))){
+      $option = db_fetch_object(db_query('SELECT * FROM {uc_attribute_options} WHERE oid = %d', arg(3)));
+      if (is_object($option)){
+	$form['title']['#default_value'] = $option->name;
+	$form['field_variation_oid'][0]['#default_value']['value'] = arg(3);
+      }
+    }
+  }
+  
+  $nid = ($form['nid']['#value']) ? $form['nid']['#value'] : '';
+  if ($nid != ''){
+      if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
+  	
+	$node = node_load($nid);
+	if ($node->field_product_price_on_demand[0]['value'] == 0){
+	  // Check stock
+	  $stock = uc_stock_level($node->model);
+	  if ($stock == 0){
+	    $form['submit']['#value'] = 'We will advise delivery';
+	    $form['submit']['#attributes'] = array('class' => 'outstock-submit');
+	  }
+	  
+	  $main_sell_price = $form['node']['#value']->sell_price;
+	  $main_list_price = $form['node']['#value']->list_price;
+	  $tax_sell_price = $main_sell_price * 1.1;
+	  $tax_list_price = $main_list_price * 1.1;
+		  
+	  $main_difference = $main_list_price - $main_sell_price;
+	  $percentage = '';
+	  if ($main_list_price != 0){
+	    $percentage = number_format(($main_difference * 100 / $main_list_price), 2);
+	  }
+	  
+	  // Get default option
+	  $default_option = db_result(db_query('SELECT default_option FROM uc_product_attributes WHERE nid = %d', $nid));
+	  
+	  if (isset($_GET['variation']) && $_GET['variation'] != '' && $_GET['variation'] != $default_option){
+	    $oid = $_GET['variation'];
+	    $variation_nid = db_fetch_object(db_query('SELECT nid FROM content_type_variation WHERE field_variation_oid_value = %d LIMIT 1', $oid));
+	  }
+	  if (is_object($variation_nid)){
+		  
+	      $variation = node_load($variation_nid->nid);
+	      // Find price for this option
+	      if (in_array('distributor', $user->roles)){
+		      $variation_price = tilers_products_get_price_per_option($node, $oid, 5);
+	      } else if (in_array('wholesale', $user->roles)){
+		      $variation_price = tilers_products_get_price_per_option($node, $oid, 4);
+	      } else {	  
+		      $variation_price = tilers_products_get_price_per_option($node, $oid);
+	      }
+	      
+	      $variation_sell_price = $variation_price;
+	      if ($percentage != ''){
+		      $variation_list_price = $variation_sell_price + ($variation_sell_price * $percentage / 100);
+	      } else {
+		      $variation_list_price = $variation_sell_price;
+	      }
+	      
+	      $final_sell_price = round($variation_sell_price * 1.1, 2);
+	      $final_list_price = round($variation_list_price * 1.1, 2);
+	      $final_difference = $final_list_price - $final_sell_price;
+	    
+	  } else {
+	    $final_sell_price = $main_sell_price * 1.1;
+	    $final_list_price = $main_list_price * 1.1;
+	    $final_difference = $final_list_price - $final_sell_price;
+	  }
+	
+	  
+	    $markup_output = '<p class="nomargin"><strong class="14">Your price:</strong></p>';
+	    $markup_output .= '<p class="green-price sell-price nomargin">' . format_price($final_sell_price) . '</p>';
+	    $markup_output .= '<div class="rrp-price"><p class="nomargin"><span style="font-size: 13px;">RRP:</span> ' . format_price($final_list_price) . '</p>';
+	    
+	    //if ($form['node']['#value']->sell_price != $form['node']['#value']->list_price){
+	    if ($final_difference != 0 && $percentage != ''){
+	      $markup_output .= '<p class="green-price nomargin saving">Save ' . format_price($final_difference) . ' (' . $percentage . '%)</p>';
+	    }
+	    $markup_output .= '</div>';
+	    $form['prices'] = array(
+		'#value' => $markup_output,
+		'#weight' => 1
+	    );
+	    
+	    $form['attributes']['#weight'] = 0;
+	    $form['submit']['#weight'] = 2;
+	} else {
+	  unset($form['submit']);
+	  $form['price-on-request'] = array(
+	    '#value' => '<div id="price-on-request"><p>Price on request<p></div>'
+	  );	  
+	}
+      }
+  }
+  
+  // 
+  if ($form_id == "uc_cart_view_form"){
+    /*if (!isset($user->uid) || $user->uid == 0){
+        drupal_set_message('You need to log in or to create an account to proceed to checkout.');
+        $form['#submit'][] = 'tilers_order_register';
+        $form['register'] = array(
+            '#type' => "submit",
+            '#value' => "Register",
+            '#submit' => array(0 => 'tilers_order_register')
+        );
+        unset($form['checkout']);
+    }*/
+
+    // Update the name of the item to show the name of the option insead of the name of the main item
+    foreach ($form['items'] as $key => $item){
+      if (is_numeric($key) && isset($item['data'])){
+        $data = unserialize($item['data']['#value']);
+  
+  	    if (!empty($data['attributes'])){
+  	      $attribute_option = db_fetch_object(db_query('SELECT oid, name FROM uc_attribute_options WHERE oid = %d', $data['attributes'][1]));
+              
+  	      $nid = $form['items'][$key]['nid']['#value'];
+  	      $form['items'][$key]['desc']['#value'] = '<a href="/' . drupal_get_path_alias('node/' . $nid) . '?variation=' . $attribute_option->oid . '">' . $attribute_option->name . '</a>';
+  	    }
+      }
+    }
+  }
+
+}
+
+/**
+ * Get price per option + role
+ **/
+function tilers_products_get_price_per_option($node, $oid, $rid = NULL){
+  if (!is_null($rid)){
+    if ($rid == 4 || $rid == 5){ 
+      $query = db_query('SELECT price FROM {uc_price_per_role_prices} WHERE nid = %d AND rid = %d', $node->nid, $rid);
+      $result = db_fetch_object($query);
+      
+      $price_per_role = uc_price_per_role_load_option_prices($node->nid);
+      if (is_object($result)){
+	$price = $result->price + $price_per_role[$oid][$rid];
+      }
+    } 
+  } else {
+      $query = db_query('SELECT price FROM {uc_attribute_options} WHERE oid = %d', $oid);
+      $result = db_fetch_object($query);
+      if (is_object($result)){
+	$price = $node->sell_price + $result->price;
+      }
+  }
+  
+  return $price;
+}
+
+/**
+ * When clicking edit on a product variation, if the variation doesn't exist, create it first
+ */
+function tilers_products_create_variation($nid, $oid){
+  $query = db_query('SELECT name FROM {uc_attribute_options} WHERE oid = %d', $oid);
+  $result = db_fetch_object($query);
+  
+  require_once 'modules/node/node.pages.inc'; // Required for node_object_prepare();
+  $node = new stdClass();
+  $node->type = 'variation';
+        
+  node_object_prepare($node); // This sets up all the default node fields so we don't accidentally leave something off.
+
+  // Copy over all the existing settings from Drupal.
+  $node->uid = 1;
+  $node->status = 1;
+  $node->title = $result->name;
+  $node->field_variation_oid[0]['value'] = $oid;
+  node_save($node);
+  
+  $url = url('node/' . $node->nid . '/edit', array('query' => 'variation='. $oid, 'absolute' => TRUE));
+  drupal_goto($url);
+}
+
+/**
+ *
+ */
+function tilers_products_cart_item($op, &$item) {
+  switch ($op) {
+    case 'load':
+      $stock = uc_stock_level($item->model);
+      if ($stock == 0){
+	$item->price = 0;
+      }
+      break;
+  }
+}
+
+
+/************************************/
+/* ADDING A CRON TO UPDATE PRODUCTS */
+/************************************/
+function tilers_products_cron(){
+  $cronid = variable_get('trueerp_cronid', NULL);
+  
+  if (is_null($cronid)){
+    $cronid = 1;
+  }
+  
+  switch ($cronid){
+    case 1:
+      $from = 1;
+      $to   = 400;
+      break;
+    case 2:
+      $from = 401;
+      $to   = 800;
+      break;
+    case 3:
+      $from = 801;
+      $to   = 1200;
+      break;
+    case 4:
+      $from = 1201;
+      $to   = 1600;
+      break;
+    case 5:
+      $from = 1601;
+      $to   = 2000;
+      break;
+    case 6:
+      $from = 2001;
+      $to   = 2400;
+      break;
+    case 7:
+      $from = 2400;
+      $to   = 2800;
+      break;
+    case 8:
+      $from = 2801;
+      $to   = 3200;
+      break;
+  }
+  
+  trueerp_import('products', $from, $to);
+  
+  if ($cronid == 8){
+    variable_set('trueerp_cronid', 1);
+  } else {
+    variable_set('trueerp_cronid', $cronid + 1);
+  }
+  
+}
+
+function format_price($value){
+  return '$' . number_format(round($value, 2), 2);
+}
+
+function get_brand($node){
+  foreach ($node->taxonomy as $term){
+    if ($term->vid = 9){
+      return $term->name;
+    }
+  }
+  return FALSE;
+}

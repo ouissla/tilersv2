@@ -1,0 +1,9 @@
+name = Tilers Related Products
+description = Enable a "related products" feature
+core = 6.x
+package = 1-Tiler
+
+; Information added by drupal.org packaging script on 2010-09-24
+version = "6.x.1.0"
+core = "6.x"
+project = "trp"

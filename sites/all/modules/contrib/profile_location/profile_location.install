@@ -1,0 +1,409 @@
+<?php
+
+/**
+ * @file
+ * The profile_location module install file, which handles the install/uninstall tasks.
+ *
+ */
+
+ /**
+ * Implementation of hook_install().
+ */
+function profile_location_install() {
+  // Create tables
+  drupal_install_schema('profile_location');
+
+  db_query("INSERT INTO {profile_location_country} VALUES ('AF', 'Afghanistan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AL', 'Albania', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DZ', 'Algeria', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AS', 'American Samoa', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AD', 'Andorra', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AO', 'Angola', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AI', 'Anguilla', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AQ', 'Antarctica', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AG', 'Antigua and Barbuda', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AR', 'Argentina', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AM', 'Armenia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AW', 'Aruba', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AU', 'Australia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AT', 'Austria', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AZ', 'Azerbaijan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BS', 'Bahamas', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BH', 'Bahrain', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BD', 'Bangladesh', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BB', 'Barbados', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BY', 'Belarus', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BE', 'Belgium', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BZ', 'Belize', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BJ', 'Benin', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BM', 'Bermuda', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BT', 'Bhutan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BO', 'Bolivia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BA', 'Bosnia and Herzegovina', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BW', 'Botswana', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BV', 'Bouvet Island', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BR', 'Brazil', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IO', 'British Indian Ocean Territory', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BN', 'Brunei Darussalam', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BG', 'Bulgaria', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BF', 'Burkina Faso', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('BI', 'Burundi', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KH', 'Cambodia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CM', 'Cameroon', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CA', 'Canada', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CV', 'Cape Verde', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KY', 'Cayman Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CF', 'Central African Republic', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TD', 'Chad', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CL', 'Chile', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CN', 'China', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CX', 'Christmas Island', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CC', 'Cocos (Keeling) Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CO', 'Colombia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KM', 'Comoros', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CG', 'Congo', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CD', 'Congo, the Democratic Republic of the', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CK', 'Cook Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CR', 'Costa Rica', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CI', 'Cote D''Ivoire', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HR', 'Croatia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CU', 'Cuba', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CY', 'Cyprus', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CZ', 'Czech Republic', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DK', 'Denmark', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DJ', 'Djibouti', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DM', 'Dominica', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DO', 'Dominican Republic', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('EC', 'Ecuador', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('EG', 'Egypt', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SV', 'El Salvador', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GQ', 'Equatorial Guinea', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ER', 'Eritrea', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('EE', 'Estonia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ET', 'Ethiopia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FK', 'Falkland Islands (Malvinas)', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FO', 'Faroe Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FJ', 'Fiji', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FI', 'Finland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FR', 'France', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GF', 'French Guiana', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PF', 'French Polynesia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TF', 'French Southern Territories', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GA', 'Gabon', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GM', 'Gambia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GE', 'Georgia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('DE', 'Germany', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GH', 'Ghana', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GI', 'Gibraltar', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GR', 'Greece', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GL', 'Greenland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GD', 'Grenada', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GP', 'Guadeloupe', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GU', 'Guam', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GT', 'Guatemala', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GN', 'Guinea', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GW', 'Guinea-Bissau', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GY', 'Guyana', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HT', 'Haiti', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HM', 'Heard Island and Mcdonald Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VA', 'Holy See (Vatican City State)', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HN', 'Honduras', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HK', 'Hong Kong', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('HU', 'Hungary', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IS', 'Iceland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IN', 'India', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ID', 'Indonesia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IR', 'Iran, Islamic Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IQ', 'Iraq', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IE', 'Ireland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IL', 'Israel', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('IT', 'Italy', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('JM', 'Jamaica', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('JP', 'Japan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('JO', 'Jordan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KZ', 'Kazakhstan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KE', 'Kenya', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KI', 'Kiribati', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KP', 'Korea, Democratic People''s Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KR', 'Korea, Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KW', 'Kuwait', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KG', 'Kyrgyzstan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LA', 'Lao People''s Democratic Republic', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LV', 'Latvia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LB', 'Lebanon', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LS', 'Lesotho', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LR', 'Liberia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LY', 'Libyan Arab Jamahiriya', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LI', 'Liechtenstein', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LT', 'Lithuania', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LU', 'Luxembourg', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MO', 'Macao', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MK', 'Macedonia, the Former Yugoslav Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MG', 'Madagascar', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MW', 'Malawi', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MY', 'Malaysia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MV', 'Maldives', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ML', 'Mali', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MT', 'Malta', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MH', 'Marshall Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MQ', 'Martinique', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MR', 'Mauritania', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MU', 'Mauritius', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('YT', 'Mayotte', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MX', 'Mexico', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('FM', 'Micronesia, Federated States of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MD', 'Moldova, Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MC', 'Monaco', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MN', 'Mongolia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MS', 'Montserrat', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MA', 'Morocco', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MZ', 'Mozambique', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MM', 'Myanmar', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NA', 'Namibia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NR', 'Nauru', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NP', 'Nepal', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NL', 'Netherlands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AN', 'Netherlands Antilles', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NC', 'New Caledonia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NZ', 'New Zealand', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NI', 'Nicaragua', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NE', 'Niger', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NG', 'Nigeria', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NU', 'Niue', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NF', 'Norfolk Island', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('MP', 'Northern Mariana Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('NO', 'Norway', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('OM', 'Oman', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PK', 'Pakistan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PW', 'Palau', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PS', 'Palestinian Territory, Occupied', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PA', 'Panama', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PG', 'Papua New Guinea', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PY', 'Paraguay', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PE', 'Peru', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PH', 'Philippines', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PN', 'Pitcairn', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PL', 'Poland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PT', 'Portugal', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PR', 'Puerto Rico', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('QA', 'Qatar', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('RE', 'Reunion', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('RO', 'Romania', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('RU', 'Russian Federation', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('RW', 'Rwanda', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SH', 'Saint Helena', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('KN', 'Saint Kitts and Nevis', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LC', 'Saint Lucia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('PM', 'Saint Pierre and Miquelon', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VC', 'Saint Vincent and the Grenadines', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('WS', 'Samoa', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SM', 'San Marino', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ST', 'Sao Tome and Principe', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SA', 'Saudi Arabia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SN', 'Senegal', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CS', 'Serbia and Montenegro', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SC', 'Seychelles', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SL', 'Sierra Leone', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SG', 'Singapore', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SK', 'Slovakia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SI', 'Slovenia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SB', 'Solomon Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SO', 'Somalia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ZA', 'South Africa', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GS', 'South Georgia and the South Sandwich Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ES', 'Spain', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('LK', 'Sri Lanka', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SD', 'Sudan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SR', 'Suriname', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SJ', 'Svalbard and Jan Mayen', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SZ', 'Swaziland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SE', 'Sweden', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('CH', 'Switzerland', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('SY', 'Syrian Arab Republic', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TW', 'Taiwan, Province of China', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TJ', 'Tajikistan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TZ', 'Tanzania, United Republic of', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TH', 'Thailand', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TL', 'Timor-Leste', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TG', 'Togo', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TK', 'Tokelau', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TO', 'Tonga', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TT', 'Trinidad and Tobago', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TN', 'Tunisia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TR', 'Turkey', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TM', 'Turkmenistan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TC', 'Turks and Caicos Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('TV', 'Tuvalu', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('UG', 'Uganda', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('UA', 'Ukraine', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('AE', 'United Arab Emirates', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('GB', 'United Kingdom', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('US', 'United States', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('UM', 'United States Minor Outlying Islands', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('UY', 'Uruguay', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('UZ', 'Uzbekistan', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VU', 'Vanuatu', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VE', 'Venezuela', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VN', 'Viet Nam', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VG', 'Virgin Islands, British', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('VI', 'Virgin Islands, U.s.', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('WF', 'Wallis and Futuna', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('EH', 'Western Sahara', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('YE', 'Yemen', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ZM', 'Zambia', 0);");
+  db_query("INSERT INTO {profile_location_country} VALUES ('ZW', 'Zimbabwe', 0);");
+
+  db_query("INSERT INTO {profile_location_state} VALUES ('Alabama', 'AL', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Alaska', 'AK', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Arizona', 'AZ', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Arkansas', 'AR', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('California', 'CA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Colorado', 'CO', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Connecticut', 'CT', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Delaware', 'DE', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('District of Columbia', 'DC', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Florida', 'FL', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Georgia', 'GA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Hawaii', 'HI', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Idaho', 'ID', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Illinois', 'IL', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Indiana', 'IN', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Iowa', 'IA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Kansas', 'KS', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Kentucky', 'KY', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Louisiana', 'LA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Maine', 'ME', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Maryland', 'MD', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Massachusetts', 'MA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Michigan', 'MI', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Minnesota', 'MN', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Mississippi', 'MS', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Missouri', 'MO', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Montana', 'MT', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Nebraska', 'NE', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Nevada', 'NV', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('New Hampshire', 'NH', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('New Jersey', 'NJ', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('New Mexico', 'NM', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('New York', 'NY', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('North Carolina', 'NC', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('North Dakota', 'ND', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Ohio', 'OH', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Oklahoma', 'OK', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Oregon', 'OR', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Pennsylvania', 'PA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Rhode Island', 'RI', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('South Carolina', 'SC', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('South Dakota', 'SD', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Tennessee', 'TN', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Texas', 'TX', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Utah', 'UT', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Vermont', 'VT', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Virgin Islands', 'VI', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Virginia', 'VA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Washington', 'WA', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('West Virginia', 'WV', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Wisconsin', 'WI', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Wyoming', 'WY', 'US');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Alberta', 'AB', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('British Columbia', 'BC', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Manitoba', 'MB', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('New Brunswick', 'NB', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Newfoundland and Labrador', 'NF', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Northwest Territories', 'NT', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Nova Scotia', 'NS', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Nunavut', 'NU', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Ontario', 'ON', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Prince Edward Island', 'PE', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Quebec', 'QC', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Saskatchewan', 'SK', 'CA');");
+  db_query("INSERT INTO {profile_location_state} VALUES ('Yukon Territory', 'YT', 'CA');");
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function profile_location_schema() {
+  $schema['profile_location_country'] = array(
+    'description' => 'Stores country iso code and name.',
+    'fields' => array(
+      'iso' => array(
+        'type' => 'char',
+        'length' => 2,
+        'not null' => TRUE,
+        'description' => 'Country iso code.',
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 80,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => "Country name for corresponding iso code.",
+      ),
+      'sticky' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Boolean indicating whether the country should appear at the top of the list.',
+      ),
+    ),
+    'primary key' => array('iso'),
+  );
+
+  $schema['profile_location_state'] = array(
+    'description' => 'Stores state name, abbreviation and iso code.',
+    'fields' => array(
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 40,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => "State name, corresponding to country iso code.",
+      ),
+      'abbrev' => array(
+        'type' => 'char',
+        'length' => 2,
+        'not null' => TRUE,
+        'description' => 'State abbreviation for corresponding state name.',
+      ),
+      'iso' => array(
+        'type' => 'char',
+        'length' => 2,
+        'not null' => TRUE,
+        'description' => 'Country iso code.',
+      ),
+    ),
+    'indexes' => array(
+      'iso' => array('iso'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ *
+ * This will automatically remove the MySQL database tables for profile_location.
+ *
+ */
+function profile_location_uninstall() {
+  // Remove tables
+  drupal_uninstall_schema('profile_location');
+
+  variable_del('profile_location_state');
+  variable_del('profile_location_country');
+  variable_del('profile_location_default_country');
+  variable_del('profile_location_category');
+  variable_del('profile_location_state_required');
+  variable_del('profile_location_sticky');
+}
+
+function profile_location_update_1() {
+  $return = array();
+
+  $return[] = update_sql("ALTER TABLE {profile_location_country} ADD sticky TINYINT NOT NULL DEFAULT '0'");
+
+  return $return;
+}

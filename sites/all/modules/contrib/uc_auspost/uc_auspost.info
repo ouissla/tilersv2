@@ -1,0 +1,6 @@
+; $Id$
+name = Australia Post
+description = Display shipping rates from Australia Post eDRC
+dependencies[] = uc_quote
+package = Ubercart - fulfillment
+core = 6.x

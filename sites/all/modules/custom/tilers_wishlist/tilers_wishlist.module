@@ -1,0 +1,363 @@
+<?php 
+
+
+/**
+* Hook_perm implementation
+**/
+function tilers_wishlist_perm() {
+  return array('access wishlist');
+}
+
+
+/**
+ * Hook_menu implementation
+ **/
+function tilers_wishlist_menu(){
+  $items['wishlist/add/%'] = array(
+    'title'           => 'Add to wishlist', 
+    'page callback'   => 'tilers_wishlist_add',
+    'page arguments'  => array(2),
+    'access callback' => TRUE, 
+    'type'            => MENU_CALLBACK,
+  );
+  $items['wishlist'] = array(
+    'title'           => 'Wishlist', 
+    'page callback'   => 'tilers_wishlist_display',
+    'access callback' => TRUE,
+    'type'            => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function tilers_wishlist_form_alter(&$form, &$form_state, $form_id){
+
+    $nid = ($form['nid']['#value']) ? $form['nid']['#value'] : '';
+    if ($nid != ''){
+        if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
+            $node = node_load($nid);
+                $form['add_to_wishlist'] = array(
+                    '#type' => 'submit',
+                    '#value' => 'Add to wishlist'
+                );
+                $form['#submit'][0] = 'tilers_wishlist_add_to_cart_form_submit';
+        }
+    }
+}
+
+function tilers_wishlist_add_to_cart_form_submit($form, &$form_state) {
+    if ($form_state['clicked_button']['#value'] == $form_state['values']['add_to_wishlist']){
+        $data = array(
+            'size'   => $form_state['values']['attributes'][1],
+            'colour' => $form_state['values']['attributes'][2]
+        );
+        $form_state['redirect'] = tilers_wishlist_add($form_state['values']['nid'], $data);
+    }
+    // If the product is out of stock, we add the id to a session, because the product is not really added to the cart
+    elseif ($form_state['clicked_button']['#value'] == $form_state['values']['outstock_submit']){
+        if (isset($_SESSION['outstock_nids']) && !empty($_SESSION['outstock_nids'])){
+            $arr_nids = $_SESSION['outstock_nids'];
+        } else {
+            $arr_nids = array();
+        }
+
+        if (!in_array($form_state['values']['nid'], $arr_nids)){
+            $arr_nids[] = $form_state['values']['nid'];
+        }
+        
+        $_SESSION['outstock_nids'] = $arr_nids;
+        $node = node_load($form_state['values']['nid']);
+        drupal_set_message($node->title . ' added to ' . l('your order queue.', 'cart'));
+        $form_state['redirect'] = drupal_goto('node/' . $form_state['values']['nid']);
+    } else {
+        $form_state['redirect'] = uc_cart_add_item($form_state['values']['nid'], $form_state['values']['qty'],  module_invoke_all('add_to_cart_data', $form_state['values']), NULL, variable_get('uc_cart_add_item_msg', TRUE));
+    }
+}
+
+/**
+ * Hook_theme implementation
+ **/
+function tilers_wishlist_theme($existing, $type, $theme, $path) {
+  return array(
+    'tilers_wishlist_display' => array(
+      'arguments' => array('cookie' => NULL),
+      'template'  => 'wishlist'
+    ),
+    'tilers_wishlist_form_table' => array(
+      'arguments' => array('form' => NULL)
+    ),
+  );
+}
+
+/**
+ * Display page wishlist
+ **/
+function tilers_wishlist_display(){
+    global $user;
+    global $base_url;
+    if (!user_access('access wishlist')){
+        drupal_set_message('Please log in or create an account to use this feature');
+        $_SESSION['login_referer'] = $base_url . '/wishlist';
+        drupal_goto('signin');
+    }
+    
+    $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+    if (!is_object($user_wishlist) && (!isset($_SESSION['tilers']['wishlist']) || empty($_SESSION['tilers']['wishlist']))){
+        drupal_goto('/');
+    }
+    if (is_object($user_wishlist) || (isset($_SESSION['tilers']['wishlist']) && !empty($_SESSION['tilers']['wishlist']))){
+        $wishlist = 1;
+    } else {
+        $wishlist = '';
+    }
+    return theme('tilers_wishlist_display', $wishlist);
+}
+
+/**
+ * Adding a product to the wishlist
+ **/
+function tilers_wishlist_add($nid, $data){
+    global $user;
+    if (!user_access('access wishlist')){
+        drupal_set_message('Please log in or create an account to use this feature');
+        $_SESSION['tilers']['wishlist'] = $nid;
+        drupal_goto('signin');
+    }
+
+    // $expire = time() + (24*3600*15);
+    
+    $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+    
+    // If the cookie exist we update it
+    if (isset($_SESSION['tilers']['wishlist']) && !empty($_SESSION['tilers']['wishlist'])){
+        $value = $_SESSION['tilers']['wishlist'];
+    } elseif (is_object($user_wishlist)){
+        $value = $user_wishlist->wishlist;
+    } else {
+        //setcookie('cosmic_wishlist', $nid . '/' . $data['size'] . '/' . $data['colour'], $expire, '/');
+        $new_value = $nid;
+        $wishlist_session = $_SESSION['tilers']['wishlist'];
+        
+        if ($wishlist_session != NULL){
+            $_SESSION['tilers']['wishlist'] = $wishlist_session . '-' . $new_value;
+        } else {
+            $_SESSION['tilers']['wishlist'] = $new_value;
+        }
+        drupal_goto('wishlist');
+
+    }
+        
+        $arr_entries = explode('-', $value);
+        // We upate the cookie only if the current nid is not already recorded
+        if (!isset($arr_entries[$nid])){
+            $new_value = $value . '-' . $nid;
+            $_SESSION['tilers']['wishlist'] = $new_value;
+        }
+
+   drupal_goto('wishlist');
+    
+}
+
+/**
+ * Form declaration
+ **/
+function tilers_wishlist_display_form(&$form_state) {
+    global $user;
+  $form = array();
+  
+  $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+  
+  if (!is_object($user_wishlist) && (!isset($_SESSION['tilers']['wishlist']) || empty($_SESSION['tilers']['wishlist']))){
+    // No wishlist
+        drupal_set_message('You don\'t have any wishlist');
+        return TRUE;
+  }
+  
+  if (isset($_SESSION['tilers']['wishlist']) && !empty($_SESSION['tilers']['wishlist'])){
+        $value = $_SESSION['tilers']['wishlist'];
+  } elseif (is_object($user_wishlist)){
+        $value = $user_wishlist->wishlist;
+  }
+        $arr_products= explode('-', $value);
+        
+        if (!empty($arr_products)){
+            
+            $arr_count = array();
+            foreach($arr_products as $product) {
+                
+                $form['node_' . $product] = array(
+                  '#type' => 'checkbox',
+                  '#title' => NULL,
+                  '#default_value' => 0,
+                );
+
+            }
+             
+            $form['submit'] = array(
+                '#type' => 'submit',
+                '#value' => t('Update'),
+            );
+             
+            $form['create_an_order'] = array(
+                '#type' => 'submit',
+                '#value' => t('Create an order'),
+            );
+             
+            $form['delete'] = array(
+                '#type' => 'submit',
+                '#value' => t('Delete wishlist'),
+            );
+             
+            $form['save'] = array(
+                '#type' => 'submit',
+                '#value' => t('Save wishlist'),
+            );
+            if (is_object($user_wishlist)){
+                $form['save']['#suffix'] = '<span id="wishlist_expires">(Wishlist expires : ' . date('d/m/Y', $user_wishlist->expire) . ')</span>';
+            }
+            
+            $form['#theme'] = 'tilers_wishlist_form_table';
+            $form['#submit'][0] = 'tilers_wishlist_display_form_submit';
+            
+            return $form;
+        
+        }
+        
+        drupal_set_message('Your wishlist is empty');
+ 
+}
+
+/**
+ * Submit function for wishlist_display_form 
+ */
+function tilers_wishlist_display_form_submit($form, &$form_state) {
+    global $user;
+    if ($form_state['clicked_button']['#value'] == $form_state['values']['create_an_order']){
+        
+        $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+        if (isset($_SESSION['tilers']['wishlist']) && !empty($_SESSION['tilers']['wishlist'])){
+            $value = $_SESSION['tilers']['wishlist'];
+        } elseif (is_object($user_wishlist)){
+            $value = $user_wishlist->wishlist;
+        }
+            $arr_values = explode('-', $value); // each $value looks like : $nid/attribute_size_id/attribute_colour_id
+
+            foreach ($arr_values as $values){
+
+                    $node = node_load($values);
+                    if (is_object($node)){
+                        $form_state['redirect'] = uc_cart_add_item($node->nid, 1, array('attributes' => array(), 'shippable' => 1), NULL, variable_get('uc_cart_add_item_msg', TRUE));
+                    }
+
+            }
+            
+    } elseif ($form_state['clicked_button']['#value'] == $form_state['values']['submit']) {
+    
+        $expire = time() + (24*3600*15);
+        $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+   
+        if (is_object($user_wishlist) || (isset($_SESSION['tilers']['wishlist']) && !empty($_SESSION['tilers']['wishlist']))){
+            $new_val = array();
+
+            foreach ($form_state['values'] as $key => $value){
+            
+                if (strpos($key, 'node_') === 0){ 
+                    if ($form_state['values'][$key] == 0){
+                        $node_id = str_replace('node_', '', $key);
+                        $new_val[] = $node_id;
+                    }
+                }
+
+            }
+
+            $new_wishlilst_value = "";
+            foreach ($new_val as $val){
+                if ($new_wishlilst_value != ''){
+                    $new_wishlilst_value .= '-' . $val;
+                } else {
+                    $new_wishlilst_value .= $val;
+                }
+            }
+            if ($new_wishlilst_value != ''){
+                $_SESSION['tilers']['wishlist'] = $new_wishlilst_value;
+                drupal_set_message('Your changes will be saved after you press the "Save wishlist" button');
+            } else {
+                db_query('DELETE FROM {tilers_wishlist} WHERE uid = %d', $user->uid);
+            }
+        }
+        drupal_goto('wishlist');
+    } elseif ($form_state['clicked_button']['#value'] == $form_state['values']['delete']) {
+        db_query('DELETE FROM {tilers_wishlist} WHERE uid = %d', $user->uid);
+        unset($_SESSION['tilers']['wishlist']);
+    } elseif ($form_state['clicked_button']['#value'] == $form_state['values']['save']) {
+        if (!isset($_SESSION['tilers']['wishlist']) || empty($_SESSION['tilers']['wishlist'])){
+            return;
+        }
+        $user_wishlist = db_fetch_object(db_query('SELECT * FROM {tilers_wishlist} WHERE uid = %d LIMIT 1', $user->uid));
+        
+        if (is_object($user_wishlist)){
+            db_query('UPDATE {tilers_wishlist}
+            SET wishlist = "%s"
+            WHERE uid = %d', $_SESSION['tilers']['wishlist'], $user->uid);
+        } else {
+            $expire = strtotime(date('Y-m-d', strtotime('+8 days')));
+            db_query('INSERT INTO {tilers_wishlist} (uid, wishlist, expire)
+            VALUES (%d, "%s", %d)', $user->uid, $_SESSION['tilers']['wishlist'], $expire);
+        }
+        drupal_set_message('Your wishlist has been saved');
+    }
+}
+
+/**
+ * Theming function for the wishlist form to display it as a table
+ **/
+function theme_tilers_wishlist_form_table($form) {
+
+  $output = '';
+
+    $output .= '<table id="wishlist_table">
+                    <tr>
+                        <th>Remove</th>
+                        <th>Picture</th>
+                        <th>Title</th>
+                        <th>Price</th>
+                    </tr>';
+                    
+    foreach($form as $field_name => $field) { 
+        // All the fields are named 'node_' . $node->nid
+        if (strpos($field_name, 'node_') === 0) {
+            
+            $arr_field_name = explode('_', $field_name);
+            $nid = $arr_field_name[1];
+            $node = node_load($nid);
+            
+            
+            $arr_field = explode('/', $field['nodecookie_' . $nid . '_' . $arr_field_name[2]]['#value']);
+
+                    if (!empty($arr_field)){
+                            
+                        $output .= '<tr>';
+                      
+                       
+                        $output .= '<td class="remove">' . drupal_render($field) . '</td>';
+                        $output .= '<td class="product_picture">' . theme('imagecache', 'uc_thumbnail', $node->field_product_images[0]['filepath'], '', '') . '</td>';
+                        $output .= '<td>' . check_plain($node->title) . '</td>';
+                        $output .= '<td>$' . round($node->sell_price, 2) . '</td>';
+                            
+                        $output .= '</tr>';
+                    }
+            
+            unset($form[$field_name]);
+            
+        }
+    }
+    
+    $output .= '</table>';
+    $output .= drupal_render($form);
+  return $output;
+}
+
+function tilers_wishlist_cron(){
+    $expire = time();
+    db_query('DELETE FROM {tilers_wishlist} WHERE expire <= %d', $expire);
+}

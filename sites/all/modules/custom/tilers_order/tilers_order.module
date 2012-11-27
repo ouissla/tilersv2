@@ -1,0 +1,384 @@
+<?php
+
+function tilers_order_menu() {
+  $items = array();
+
+  $items['admin/store/back_orders'] = array(
+    'title' => 'Back orders',
+    'description' => 'List of backorders',
+    'page callback' => 'tilers_order_back_orders_list',
+    'access callback' => TRUE,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/store/back_orders/validate/%'] = array(
+    'title' => 'Back orders validation',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tilers_order_valid', 4),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['back-order/%'] = array(
+    'title' => 'Back orders loading',
+    'page callback' => 'tilers_order_load_back_order',
+    'page arguments' => array(1),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['testconnect'] = array(
+    'title' => 'Test de connexion',
+    'page callback' => 'testconnect',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function tilers_order_form_alter(&$form, &$form_state, $form_id){
+    global $user;
+    $nid = ($form['nid']['#value']) ? $form['nid']['#value'] : '';
+    if ($nid != ''){
+        if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
+            $node = node_load($nid);
+
+            if(uc_stock_level($node->model) == 0) {
+                unset($form['submit']);
+                $form['outstock_submit'] = array(
+                    '#type' => 'submit',
+                    '#value' => 'Add to order queue'
+                );
+                // see tilers_wishlist module for submit function
+            }
+            
+            // Reorder options
+            $reordered_options = $detailled_options = array();
+            if (!empty($form['attributes'])){
+                if (!empty($form['attributes'][1]['#options'])){
+                    foreach ($form['attributes'][1]['#options'] as $option_id => $value){
+                        $option = db_fetch_object(db_query('SELECT price FROM {uc_attribute_options} WHERE oid = %d', $option_id));
+                        if (is_object($option)){
+                            $detailled_options[] = array(
+                                'price' => $option->price,
+                                'title' => $value,
+                                'oid'   => $option_id
+                            );
+                        }
+                    }
+                }
+            }
+            
+            if (!empty($detailled_options)){
+                
+                // Obtain a list of columns
+                foreach ($detailled_options as $key => $row) {
+                    $price[$key]  = $row['price'];
+                    $title[$key] = $row['title'];
+                    $oid[$key] = $row['oid'];
+                }
+                
+                // Sort the data with volume descending, edition ascending
+                // Add $data as the last parameter, to sort by the common key
+                array_multisort($price, SORT_ASC, $title, SORT_REGULAR, $oid, SORT_ASC, $detailled_options);
+                
+                foreach ($detailled_options as $detailled_option){
+                    $reordered_options[$detailled_option['oid']] = $detailled_option['title'];
+                }
+                
+                if (!empty($reordered_options)){
+                    $form['attributes'][1]['#options'] = $reordered_options;
+                }
+            }
+            
+        }
+    }
+}
+
+function tilers_order_register(){
+    drupal_goto('signin');
+}
+
+/**
+ * Implementation of hook_cart_pane().
+ */
+function tilers_order_cart_pane($items) {
+  $panes[] = array(
+    'id' => 'back_order',
+    'body' => tilers_order_back_order_array(),
+    'title' => t('Unavailable products'),
+    'desc' => t('Display out of stock products that have been added to the cart.'),
+    'weight' => 3,
+    'enabled' => TRUE,
+  );
+  return $panes;
+}
+
+function tilers_order_back_order_array(){
+    if (isset($_SESSION['outstock_nids']) && !empty($_SESSION['outstock_nids'])){
+        $data = array();
+        foreach ($_SESSION['outstock_nids'] as $nid){
+            $node = node_load($nid);
+            $data[] = array(theme('imagecache','cart', $node->field_image_cache[0]['filepath'], $node->field_image_cache[0]['data']['alt'], $node->field_image_cache[0]['data']['title']), $node->title, $node->sell_price);
+        }
+        
+        $output = '<h2>These products are out of stock</h2>';
+        $output .= '<p>You will be contacted as soon as those products are available.</p>';
+        $output .= theme_table(array('Picture', 'Product name', 'Price'), $data, array('id' => 'outstock_products'));
+        return $output;
+    } else {
+        return;
+    }
+}
+
+function tilers_order_order($op, &$arg1, $arg2) {
+  switch ($op) {
+    case 'submit':
+      
+        global $user;
+        profile_load_profile($user);
+        
+        // Posting order on the ERP
+        $delivery_zones = array(
+            2166 => 'ACT',
+            2159 => 'NSW',
+            2165 => 'NT',
+            2160 => 'QLD',
+            2161 => 'SA',
+            2162 => 'TAS',
+            2163 => 'VIC',
+            2164 => 'WA'
+        );
+        
+        $shipping = $user->profile_company . '\r\n' . $arg1->delivery_street1;
+        if ($arg1->delivery_street2 != ''){
+            $shipping .= '\r\n' . $arg1->delivery_street2;
+        }
+        $shipping .= '\r\n' . strtoupper($arg1->delivery_city) . ' ' . $delivery_zones[$arg1->delivery_zone] . ' ' . $arg1->delivery_postal_code . '\r\nAustralia';
+        
+        $arr_line = array();
+        $totalprice = 0;
+        $totalpriceinc = 0;
+        foreach ($arg1->products as $product){
+            $prod = new stdClass;
+            $prod->ProductName = $product->title;
+            $prod->UnitOfMeasure = 'Units';
+            $prod->UOMQtySold = intval($product->qty);
+            //$prod->LinePrice = round($product->price, 2);
+            $prod->LinePrice = 10;
+            $prod->LineTaxCode = 'GST';
+            //$prod->LinePriceInc = round($product->price, 2) + 2;
+            $prod->LinePriceInc = 11;
+            //$prod->TotalLineAmount = $product->qty * round($product->price, 2);
+            $prod->TotalLineAmount = 10;
+            //$prod->TotalLineAmountInc = $product->qty * round($product->price, 2);
+            $prod->TotalLineAmountInc = 11;
+            
+            $totalprice += $prod->TotalLineAmount;
+            $totalpriceinc += $prod->TotalLineAmountInc;
+            
+            $product_container = new stdClass;
+            $product_container->type = "TSalesOrderLine";
+            $product_container->fields = $prod;
+            
+            $arr_line[] = $product_container;
+        }
+        
+        $order = new stdClass;
+        $order->GLAccountName = "Accounts Receivable";
+        $order->CustomerName = $user->profile_company;
+        $order->TermsName = "COD";
+        $order->EmployeeName = "WebUser";
+        $order->SaleClassName = "Default";
+        $order->SaleDate = date('Y-m-d', time());
+        $order->ShipToDesc = $shipping;
+        $order->Lines = $arr_line;
+        $order->Comments = "Comments";
+        $order->TotalAmount = $totalprice;
+        $order->TotalAmountInc = $totalpriceinc;
+        
+        $order_container = new stdClass;
+        $order_container->type = "TSalesOrder";
+        $order_container->fields = $order;
+        $json_order = json_encode($order_container);
+        $result = trueerp_set('erpapi/TSalesOrder', $json_order);
+        
+        // Storing back orders
+        if (isset($_SESSION['outstock_nids']) && !empty($_SESSION['outstock_nids'])){
+           db_query('INSERT INTO {tilers_back_order} (boid, oid, uid, nids, status) VALUES (null, %d, %d, "%s", %d)', $arg1->order_id, $user->uid, serialize($_SESSION['outstock_nids']), 1);
+           unset($_SESSION['outstock_nids']);
+        }
+    break;
+  }
+}
+
+function tilers_order_back_orders_list(){
+    $sql = db_query('SELECT * FROM {tilers_back_order} WHERE status = 1');
+    $data_not_validated = array();
+    while ($bo = db_fetch_object($sql)){
+
+        //we organize the products
+        $product_list = '<ul class="back_order_product_list">';
+        $products = unserialize($bo->nids);
+        foreach ($products as $product_nid){
+            $node = node_load($product_nid);
+            $stock = db_fetch_object(db_query('SELECT stock FROM {uc_product_stock} WHERE sku = "%s"', $node->model));
+            $icon = ($stock->stock == 0) ? 'x' : 'v';
+            $product_list .= '<li class="' . $icon . '">' . l($node->title, 'node/' . $node->nid) . '</li>';
+
+            $options = l('Validate', 'admin/store/back_orders/validate/' . $bo->boid);
+        }
+        $product_list .= '</ul>';
+
+        $data_not_validated[] = array(l($bo->oid, 'admin/store/orders/' . $bo->oid), l($bo->uid, 'users/' . $bo->uid), $product_list, $options);
+    }
+
+    $sql = db_query('SELECT * FROM {tilers_back_order} WHERE status = 0');
+    $data_validated = array();
+    while ($bo = db_fetch_object($sql)){
+        //we organize the products
+        $product_list = '<ul class="back_order_product_list">';
+        $products = unserialize($bo->nids);
+        foreach ($products as $product_nid){
+            $node = node_load($product_nid);
+            $product_list .= '<li>' . l($node->title, 'node/' . $node->nid) . '</li>';
+        }
+        $product_list .= '</ul>';
+
+        $data_validated[] = array(l($bo->oid, 'admin/store/orders/' . $bo->oid), l($bo->uid, 'users/' . $bo->uid), $product_list);
+    }
+
+    $output = theme_table(array('Order id', 'User id', 'Products', 'Options'), $data_not_validated);
+    $output .= '<h2 style="margin-top: 15px;">Validated Back Orders</h2>';
+    $output .= theme_table(array('Order id', 'User id', 'Products'), $data_validated);
+    return $output;
+}
+
+function tilers_order_valid(&$form_state, $boid) {
+  $form['boid'] = array('#type'  => 'value', '#value' => $boid);
+
+  $uid = db_fetch_object(db_query('SELECT uid FROM {tilers_back_order} WHERE boid = %d', $boid));
+  if (is_object($uid)){
+    $user = user_load($uid->uid);
+    $form['email'] = array('#type'  => 'value', '#value' => $user->mail);
+  }
+
+  return confirm_form($form,
+    t('Are you sure you want to validate this "back order"? Doing so, an email will be sent to the customer.'),
+    isset($_GET['destination']) ? $_GET['destination'] : 'admin/store/back_orders',
+    t('This action cannot be undone.'),
+    t('Validate'), t('Cancel')
+  );
+}
+
+/**
+ * Submit function for backorder validation
+ */
+function tilers_order_valid_submit($formid, &$form_state) {
+    if ($form_state['values']['confirm']) {
+
+        //we generate a reference for this order
+        $ref = tilers_order_generate_ref($form_state['values']['boid']);
+        
+        db_query('UPDATE {tilers_back_order} SET ref = "%s" WHERE boid = %d', $ref, $form_state['values']['boid']);
+
+        db_query('UPDATE {tilers_back_order} SET status = 0 WHERE boid = %d', $form_state['values']['boid']);
+        if (isset($form_state['values']['email']) && !empty($form_state['values']['email'])){
+            $sitemail = variable_get('site_mail', "info@tilersonline.com.au");
+            $headers = 'From: ' . $sitemail . "\r\n";
+            $headers .= 'Sender: ' . $sitemail . ' <' . $sitemail . '>'."\r\n";
+            $headers .= "MIME-version: 1.0\r\n";
+            $headers .= "Content-type: text/html; charset= uft-8\r\n";
+            $headers .= "\r\n";
+
+            $msg = 'The products you were waiting for are now vailable at tilersonline.com.au. Please click on this link to go back to the website and automatically fill your cart : <a href="' . l($base_url . "back-order/" . $ref, $base_url . "back-order/" . $ref) ;
+
+            mail($form_state['values']['email'], "Your products are available on tilersonlince.com.au", $msg, $headers);
+        }
+    }
+    $form_state['redirect'] = 'admin/store/back_orders';
+}
+
+/*
+ * Generates a reference for a back order
+ */
+function tilers_order_generate_ref($boid){
+    $length = 10;
+    $characters = "0123456789abcdefghijklmnopqrstuvwxyz";
+    $string = $boid . '-';
+    for ($p = 0; $p < $length; $p++) {
+        $string .= $characters[mt_rand(0, strlen($characters))];
+    }
+    return $string;
+}
+
+function tilers_order_load_back_order($ref){
+    global $user;
+
+    $back_order_exists = db_fetch_object(db_query('SELECT boid, nids FROM {tilers_back_order} WHERE ref = "%s"', $ref));
+    if (is_object($back_order_exists)){
+        $nids = unserialize($back_order_exists->nids);
+        foreach ($nids as $nid){
+            $node = node_load($nid);
+            uc_cart_add_item($nid, 1, NULL, NULL, variable_get('uc_cart_add_item_msg', TRUE));
+        }
+    }
+    drupal_goto('/');
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function tilers_order_get_discounts_for_order($order, &$errors = NULL, &$warnings = NULL, &$messages = NULL) {
+
+$a = array();
+
+foreach ($order->products as $prod){
+	$sql = 'SELECT * FROM uc_discounts d
+		LEFT JOIN uc_discounts_skus ds ON ds.discount_id = d.discount_id
+		WHERE ds.sku = "' . $prod->model . '"
+		AND d.qualifying_amount <= ' . $prod->qty . '
+		AND (d.is_active=1)
+		AND (d.requires_code=0)
+		ORDER BY d.qualifying_amount DESC
+		LIMIT 1';
+		$query = db_query($sql);
+	$this_discount = db_fetch_object($query);
+	if (is_object($this_discount)){
+		
+		
+		
+		$discount->times_applied = $prod->qty;
+		$discount->amount = $prod->qty * $this_discount->discount_amount;
+		
+		
+		$a[] = $this_discount;
+	}
+}
+
+}

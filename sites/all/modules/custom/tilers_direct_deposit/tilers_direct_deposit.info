@@ -1,0 +1,8 @@
+; $Id$
+name = Tilers Direct Deposit
+description = Provides the Direct Deposit payment method.
+dependencies[] = uc_cart
+dependencies[] = uc_payment
+package = "1-Tiler"
+core = 6.x
+php = 5.0

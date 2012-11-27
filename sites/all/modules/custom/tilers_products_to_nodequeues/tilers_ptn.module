@@ -1,0 +1,186 @@
+<?php
+
+/*
+LIST OF NODEQUEUES (qid, title, name)
+3 - Blades and Accessories Electric Cutters - blades_access_electric_cutters
+2 - Wheels and Accessories Manual Cutters - wheels_access_manual_cutters
+4 - Hand Held Electric Mixers - hand_held_electric_mixers
+5 - Mixing Paddles - mixing_paddles
+6 - Portable Cement and Screed Mixers - portable_cement_screed_mixers
+7 - Mixer Spare Parts - mixer_spare_parts
+8 - Tools - Mixing Equipment - tools_mixing_equipment
+9 - Tools - Measuring and Marking - tools_measuring_marketing
+10 - Tools - Measuring and Marking - Spirit Levels - spirit_levels
+11 - Tools - Measuring and Marking - Laser Levels - laser_levels
+12 - Tools - Measuring and Marking - Squares / Templates - square_templates
+13 - Tools - Measuring and Marking - Chalk and Ink Lines - chalk_ink_lines
+14 - Tools - Measuring and Marking - Pencils and Markers - pencils_markers
+15 - Tools - Tile Levelling Spacers and Wedges - tile_levelling_spacers_wedges
+16 - Tools - Tile Levelling Spacers and Wedges - Tile Levelling Systems - tile_levelling_systems
+17 - Tools - Tile Levelling Spacers and Wedges - Tile Spacers - tile_spacers
+18 - Tools - Tile Levelling Spacers and Wedges - Tile Wedges - tile_wedges
+19 - Tools - Diamond Cutting Grinding and Polishing - diamond_cutting
+20 - Tools - Diamond Cutting Grinding and Polishing - Blades for Angle Grinders - blades_angle_grinders
+21 - Tools - Diamond Cutting Grinding and Polishing - Blades for Tile Cutting Machines - blades_tile_cutting_machines
+22 - Tools - Diamond Cutting Grinding and Polishing - Grinding Cups - grinding_cups
+23 - Tools - Diamond Cutting Grinding and Polishing - Stone and Tile Polishing - stone_tile_polishing
+24 - Tools - Hole Cutting Equipment - hole_cutting_equipment
+25 - Tools - Hole Cutting Equipment - Stone and Porcelain Cutting - stone_porcelain_cutting
+26 - Tools - Hole Cutting Equipment - Ceramic and Soft Material Cutting - ceramic_soft_material_cutting
+27 - Tools - Grouting and Cleaning Equipment - grouting_cleaning_equipment
+28 - Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems - grout_cleanup_systems
+29 - Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems - Replacement Sponges and Accessories - replace_sponges_accessories
+30 - Tools - Grouting and Cleaning Equipment - Grout Clean-up Systems - Scourers and Scrubbers - scourers_scrubbers
+31 - Tools - Grouting and Cleaning Equipment - Buckets - buckets
+32 - Tools - Grouting and Cleaning Equipment - Grout Removal Tools - grout_removal_tools
+33 - Tools - Trowels and Spreaders - trowels_spreaders
+34 - Tools - Trowels and Spreaders - Notched Trowels - notched_trowels
+35 - Tools - Trowels and Spreaders - Rendering Trowels - rendering_trowels
+36 - Tools - Trowels and Spreaders - Floats - floats
+37 - Tools - Trowels and Spreaders - Scrapers - scrapers
+38 - Tools - Trowels and Spreaders - Gauging and Margin Trowels - gauging_margin_trowels
+39 - Tools - General Tools - tools_general_tools
+40 - Tools - General Tools - Tile Nippers - tools_tile_nippers
+41 - Tools - General Tools - Hacksaw, Hebel Saws - tools_hacksaw_hebel_saws
+42 - Tools - General Tools - Mallets and Hammers - tools_mallets_hammers
+43 - Tools - General Tools - Chisels - tools_chisels
+44 - Tools - General Tools - Suction Caps - tools_suction_caps
+45 - Tools - General Tools - Knives and Blades - tools_knives_blades
+46 - Tools - General Tools - Knee Pads and Safety Equipment - tools_knee_pads_safety_equipment
+47 - Tools - General Tools - Tool Storage - tool_storage
+48 - Tiling Trims - Angles - angles
+49 - Tiling Trims - Angles - Angles Aluminium - angles_aluminium
+50 - Tiling Trims - Angles - Angles Brass - angles_brass
+51 - Tiling Trims - Angles - Angles Stainless Steel - angles_stainless_steel
+52 - Tiling Trims - Angles - Angles PVC - angles_pvc
+53 - Tiling Trims - Angles - Angles Notched - angles_notched
+54 - Tiling Trims - Half Round Trim - half_round_trim
+55 - Tiling Trims - Half Rounf Trim - Aluminium - half_round_trim_aluminium
+56 - Tiling Trims - Half Rounf Trim - Brass - half_round_trim_brass
+57 - Tiling Trims - Half Rounf Trim - Stainless Steel - half_round_trim_stainless_steel
+58 - Tiling Trims - Half Rounf Trim - PVC - hhalf_round_trim_pvc
+59 - Tiling Trims - Diminishing Trim - diminishing_trim
+60 - Tiling Trims - Diminishing Trim - Aluminium - diminishing_trim_alu
+61 - Tiling Trims - Diminishing Trim - Brass - diminishing_trim_brass
+62 - Tiling Trims - Corner Trims - corner_trims
+63 - Tiling Trims - Corner Trims - Internal - corner_trims_internal
+64 - Tiling Trims - Corner Trims - External - corner_trims_external
+65 - Tiling Trims - Corner Trims - Unicorn - corner_trims_unicorn
+66 - Tiling Trims - Corner Angles and Guards - corner_angles_guards
+67 - Tiling Trims - Corner Angles and Guards - Mosaic Angle - corner_angles_guards_mosaic_angle
+68 - Tiling Trims - Corner Angles and Guards - Mosaic Guard - corner_angles_guards_mosaic_guard
+69 - Tiling Trims - Corner Angles and Guards - Decorative Y Section - corner_angles_guards_deco
+70 - Tiling Trims - Decorative Border Trim - deco_border_trim
+71 - Tiling Trims - Decorative Border Trim - Border Trim - deco_border_trim_border
+72 - Tiling Trims - Decorative Border Trim - Listello Trim - deco_border_trim_listello
+73 - Tiling Trims - Decorative Border Trim - Decor Trim - deco_border_trim_decor
+74 - Tiling Trims - Splash Trim - splash_trim
+75 - Tiling Trims - Stair Nosing - stair_nosing
+76 - Tiling Trims - Top Trim - top_trim
+77 - Tiling Trims - Cove Trim - cove_trim
+78 - Tiling Trims - Cove Trim - Tile In Cove Trim - tile_in_cove_trim
+79 - Tiling Trims - Cove Trim - Retrofit Cove Trim - retrofit_cove_trim
+80 - Tiling Trims - Cove Trim - Combination Tile in Trim - combination_tile_in_trim
+81 - Tiling Trims - Cove Trim - Thin Bed Expansion Joints - thin_bed_exp_joints
+82 - Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Aluminium - thin_bed_exp_joints_alu
+83 - Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Brass - thin_bed_exp_joints_brass
+84 - Tiling Trims - Cove Trim - Thin Bed Expansion Joints - Stainless Steel - thin_bed_exp_joints_stainless_steel
+85 - Tiling Trims - Cove Trim - Thick Expansion Joints - thick_bed_martarloc_exp_joints
+86 - Tiling Trims - Cove Trim - Thick Expansion Joints - Alu - thick_bed_martarloc_exp_joints_alu
+87 - Tiling Trims - Cove Trim - Thick Expansion Joints - Brass - thick_bed_martarloc_exp_joints_brass
+88 - TT - Cove Trim - Thick Expansion Joints - Stainless steel - thick_bed_martarloc_exp_joints_stainless_steel
+89 - Floor Grates - Linear Floor Grates - linear_floor_grates
+90 - Floor Grates - Linear Floor Grates - Tile Insert - linear_floor_grates_tile_insert
+91 - Floor Grates - Linear Floor Grates - Perforated - linear_floor_grates_perforated
+92 - Floor Grates - Linear Floor Grates - Heel Guard - linear_floor_grates_heel_guard
+93 - Floor Grates - Floor Grates - floor_grates
+94 - Floor Grates - Floor Grates - Tile Insert - floor_grates_tile_insert
+95 - Floor Grates - Floor Grates - Square Grates - floor_grates_square_grates
+96 - Floor Grates - Floor Grates - Round Grates - floor_grates_round_grates
+97 - Sound Insulation Systems - sound_insulation_systems
+98 - Sound Insulation Systems - Tile Over - sis_tile_over
+99 - Sound Insulation Systems - Timber Floors - sis_timber_floors
+100 - Sound Insulation Systems - Screed Over - sis_screed_over
+101 - Sound Insulation Systems - Adhesive Systems - sis_adhesive_systems
+102 - Maxisil Silicones - maxisil_silicones
+103 - Maxisil Silicones Ceramic - maxisil_silicones_ceramic
+104 - Maxisil Silicones Natural Stone - maxisil_silicones_natural_stone
+105 - Maxisil Silicones Cleaner and Primers - maxisil_silicones_cleaner_primers
+106 - Mapei Silicones - mapei_silicones
+107 - Polyurethane - polyurethane
+108 - Polyurethane Sealants - polyurethane_sealants
+109 - Polyurethane Adhesive and Sealant - polyurethane_adhesive_sealant
+110 - Waterproofing Membranes - waterproofing_membranes
+111 - Waterproofing Membranes - Water based - waterproof_membranes_water_based
+112 - Waterproofing Membranes - Solvent based - waterproofing_membranes_solvent_based
+113 - Waterproofing Membranes - Bandage and Accessories - waterproofing_membranes_bandage_accessories
+114 - Adhesives - Mapei - adhesives_mapei
+115 - Adhesives - Mapei - Powder Adhesives - adhesives_mapei_powder
+116 - Adhesives - Mapei - Paste Adhesives - adhesives_mapei_paste
+117 - Adhesives - Mapei - Levelling Compounds - adhesives_mapei_levelling_compounds
+118 - Adhesives - Mapei - Speciality Products - adhesives_mapei_speciality_products
+119 - Adhesives - Mapei - Grouts - adhesives_mapei_grouts
+120 - Adhesives - Mapei - Additives - adhesives_mapei_additives
+121 - Adhesives - CTA - adhesives_cta
+122 - Adhesives - CTA - Powder Adhesives - adhesives_cta_powder
+123 - Adhesives - CTA - Paste Adhesives - adhesives_cta_adhesives
+124 - Adhesives - CTA - Grouts - adhesives_cta_grouts
+125 - Adhesives - CTA - Additives - adhesives_cta_additives
+126 - Adhesives - Laticrete - adhesives_laticrete
+127 - Adhesives - Laticrete - Powder Adhesives - adhesives_laticrete_powder
+128 - Adhesives - Laticrete - Paste Adhesives - adhesives_laticrete_paste
+129 - Adhesives - Laticrete - Grouts - adhesives_laticrete_grouts
+130 - Adhesives - Laticrete - Additives - adhesives_laticrete_additives
+131 - Adhesives - Construction Chemicals - adhesives_construction_chemicals
+132 - Adhesives - Construction Chemicals - Grouts - adhesives_construction_chemicals_grouts
+133 - Adhesives - Construction Chemicals - Additives - adhesives_construction_chemicals_add
+134 - Tile Cleaners - tile_cleaners
+135 - Tile Cleaners - Tile - tile_cleaners_tile
+136 - Tile Cleaners - Stone Cleaners - tile_cleaners_stone
+137 - Tile Sealers - tile_sealers
+138 - Tile Sealers - Penetrating - tile_sealers_penetrating
+139 - Tile Sealers - Semi-gloss Colour Enhancers - tile_sealers_semigloss
+140 - Tile Sealers - Gloss - tile_sealers_gloss
+141 - Concrete Sealers - concrete_sealers
+142 - Cleaning and Sealing Accessories - cleaning_sealing_accessories
+ */
+
+function products_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  switch ($op) {
+    case 'prepare':
+    break;
+    case 'insert':
+
+        switch ($node->type){
+
+            case 'tool':
+            break;
+
+            case 'trim':
+            break;
+
+            case 'floor':
+            break;
+
+            case 'sealant':
+            break;
+
+            case 'sound':
+            break;
+
+            case 'adhesive':
+            break;
+
+            case 'tilecare':
+            break;
+        
+
+        }
+
+    break;
+    case 'update':
+
+    break;
+
+  }
+}

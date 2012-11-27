@@ -1,0 +1,664 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Shipping quote module that fetches quotes from Australia Post's online delivery calculator.
+ *
+ * Coded by Daniel Streefkerk - http://daniel.streefkerkonline.com
+ * Code modified by Dave Cannon for drupal 6 using the uc_ups and uc_usps modules as a guide.
+ * 
+ * 
+ */
+
+/******************************************************************************
+ * Drupal Hooks                                                               *
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_menu().
+ */
+function uc_auspost_menu(){
+  $items = array();
+  
+  $items['admin/store/settings/quotes/methods/auspost'] = array(
+    'title' => 'Australia Post',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_auspost_admin_settings'),
+    'access arguments' => array('configure quotes'),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uc_auspost.admin.inc',
+  );
+
+  return $items;
+}
+
+function uc_auspost_init() {
+  drupal_add_css(drupal_get_path('module', 'uc_auspost') .'/uc_auspost.css');
+}
+
+/******************************************************************************
+ * Conditional Actions Hooks                                                  *
+ ******************************************************************************/
+
+/**
+ * Implementation of hook_ca_predicate().
+ *
+ * Connect the auspost action and event.
+ */
+
+function uc_auspost_ca_predicate(){
+  $enabled = variable_get('uc_quote_enabled', array());
+  $quote_action = array(
+    '#name' => 'uc_quote_action_get_quote',
+    '#title' => t('Fetch a shipping quote'),
+    '#argument_map' => array(
+      'order' => 'order',
+      'method' => 'method',
+    ),
+  );
+  // Domestic areas include Australia.
+  // ISO 3166 code for australia is 36.
+  $countries = array(36);
+  $predicates = array(
+    'uc_auspost_get_quote' => array(
+      '#title' => t('Shipping quote from Australia Post eDRC'),
+      '#trigger' => 'get_quote_from_auspost',
+      '#class' => 'uc_auspost',
+      '#status' => $enabled['auspost'],
+      '#conditions' => array(
+        '#operator' => 'AND',
+        '#conditions' => array(
+          array(
+            '#name' => 'uc_order_condition_delivery_country',
+            '#title' => t('Is in Australia'),
+            '#argument_map' => array(
+              'order' => 'order',
+            ),
+            '#settings' => array(
+              'countries' => $countries,
+            ),
+          ),
+        ),
+      ),
+      '#actions' => array(
+        $quote_action,
+      ),
+    ),
+  'uc_auspost_get_intl_quote' => array(
+      '#title' => t('Shipping quote from Australia Post eDRC Intl.'),
+      '#trigger' => 'get_quote_from_auspost_intl',
+      '#class' => 'uc_auspost',
+      '#status' => $enabled['auspost_intl'],
+      '#conditions' => array(
+        '#operator' => 'AND',
+        '#conditions' => array(
+          array(
+            '#name' => 'uc_order_condition_delivery_country',
+            '#title' => t('Is not in Australia'),
+            '#argument_map' => array(
+              'order' => 'order',
+            ),
+            '#settings' => array(
+              'negate' => TRUE,
+              'countries' => $countries,
+            ),
+          ),
+        ),
+      ),
+      '#actions' => array(
+        $quote_action,
+      ),
+    ),
+  );
+  
+  return $predicates;
+}
+
+/******************************************************************************
+ * Ubercart Hooks                                                             *
+ ******************************************************************************/
+
+/**
+ * Implementation of Ubercart's hook_shipping_type().
+ */
+function uc_auspost_shipping_type() {
+  $weight = variable_get('uc_quote_type_weight', array('small_package' => 0));
+
+  $types = array();
+  $types['small_package'] = array(
+    'id' => 'small_package',
+    'title' => t('Small packages'),
+    'weight' => $weight['small_package'],
+  );
+
+  return $types;
+}
+
+/**
+ * Implementation of Ubercart's hook_shipping_method().
+ */
+
+function uc_auspost_shipping_method(){
+  $enabled = variable_get('uc_quote_enabled', array());
+  $weight = variable_get('uc_quote_method_weight', array('auspost' => 0, 'auspost_intl' => 1));
+  
+  $methods = array(
+    'auspost' => array(
+      'id' => 'auspost',
+      'title' => t('Australia Post'),
+      'quote' => array(
+        'type' => 'small_package',
+        'callback' => 'uc_auspost_quote',
+        'accessorials' => _uc_auspost_services(),
+      ),
+      'enabled' => $enabled['auspost'],
+      'weight' => $weight['auspost'],
+    ),
+  'auspost_intl' => array(
+      'id' => 'auspost_intl',
+      'title' => t('Australia Post (Intl.)'),
+      'quote' => array(
+        'type' => 'small_package',
+        'callback' => 'uc_auspost_intl_quote',
+        'accessorials' => _uc_auspost_intl_services(),
+      ),
+      'enabled' => $enabled['auspost_intl'],
+      'weight' => $weight['auspost_intl'],
+    ),
+  );
+  
+  return $methods;
+}
+
+/******************************************************************************
+ * Module Functions                                                           *
+ ******************************************************************************/
+
+/**
+ * Standard callback to return a shipping rate via the auspost method.
+ *
+ * @param $products
+ *   The order's products.
+ * @param $details
+ *   Other order details including a shipping address.
+ * @return
+ *   A JSON object containing the shipping quote for the order.
+ */
+
+function uc_auspost_quote($products, $details){
+  
+  $services = array();
+  $quotes = array();
+ 
+  $addresses = array((array)variable_get('uc_quote_store_default_address', new stdClass()));
+
+  $packages = _uc_auspost_package_products($products, $addresses);
+
+  if (!count($packages)) {
+    return array();
+  }
+
+  $dest = (object)$details;
+
+  foreach ($packages as $key => $ship_packages) {
+    
+    $orig = (object)$addresses[$key];
+    $orig->email = variable_get('uc_store_email', '');
+  
+    foreach (array_keys(array_filter(variable_get('uc_auspost_services', array()))) as $auspost_service) {
+      foreach ($ship_packages as $pkg_key => $package) {
+        // Go through each package and get quote for each service.
+        $request = uc_auspost_rate_request($package, $orig, $dest, $auspost_service);
+        $response = _uc_auspost_fetch_quote($request);
+        //if (user_access('configure quotes') && variable_get('uc_quote_display_debug', FALSE)) {
+          //  $services[$auspost_service]['products'][$pkg_key]['debug'] .= htmlentities($request) . "<br />\n";
+        //}
+        $services[$auspost_service]['products'][$pkg_key]['quote_message'] = $response['err_msg'];
+        $services[$auspost_service]['products'][$pkg_key]['quote_amount'] = $response['charge'];
+        $services[$auspost_service]['products'][$pkg_key]['quote_days'] = $response['days'];    
+      }
+    }
+  }
+  
+  $auspost_services = array_filter(variable_get('uc_auspost_services', _uc_auspost_services()));
+  
+  foreach ($services as $service => $service_quote) {
+    if (!in_array($service, $auspost_services)) {
+      unset($services[$service]);
+    }
+  }
+  foreach ($services as $key => $service_quote) {  
+    $rate = 0;
+    $days = array();
+    foreach ($service_quote['products'] as $quote) {
+      if ($quote['quote_message'] = 'OK') {
+        $rate += $quote['quote_amount'];
+        $days[] = $quote['quote_days'];
+        $error = false;
+      } else {
+        $error = true;
+      }
+    }
+    // Get the longest time estimate per shipping method
+    // i.e. If the shipment contains multiple packages, some may
+    // take longer than others. uc_auspost returns the longest
+    // time estimate.
+    sort($days);
+    $days = array_pop($days);
+  
+    // Add in any admin or weekend-based extra time
+    $days = _uc_auspost_factor_processing_time($days);
+    
+    // Return the quote if the rate returned is more than $0.00
+    if ($rate > 0) {
+      $rate = uc_auspost_markup($rate);
+      $quotes[$key] = array('rate' => $rate, 'format' => uc_currency_format($rate), 'option_label' => _uc_get_option_label($key,$days));
+    } else {
+      //watchdog('uc_auspost',"Could not retrieve rates for $rate",'WATCHDOG_NOTICE');
+    }        
+  }
+  
+  uasort($quotes, 'uc_quote_price_sort');
+  
+  return $quotes;
+}
+ 
+function uc_auspost_intl_quote($products, $details){
+  
+  $services = array();
+  $quotes = array();
+ 
+  $addresses = array((array)variable_get('uc_quote_store_default_address', new stdClass()));
+  $packages = _uc_auspost_package_products($products, $addresses);
+  
+  if (!count($packages)) {
+    return array();
+  }
+
+  $dest = (object)$details;
+
+  foreach ($packages as $key => $ship_packages) {
+    
+    $orig = (object)$addresses[$key];
+    $orig->email = variable_get('uc_store_email', '');
+  
+    foreach (array_keys(array_filter(variable_get('uc_auspost_intl_services', array()))) as $auspost_service) {
+      foreach ($ship_packages as $pkg_key => $package) {
+        // Go through each package and get quote for each service.
+        $request = uc_auspost_rate_request($package, $orig, $dest, $auspost_service);
+        $response = _uc_auspost_fetch_quote($request);
+    
+        $services[$auspost_service]['products'][$pkg_key]['quote_message'] = $response['err_msg'];
+        $services[$auspost_service]['products'][$pkg_key]['quote_amount'] = $response['charge'];
+        $services[$auspost_service]['products'][$pkg_key]['quote_days'] = $response['days'];    
+      }
+    }
+  }
+  
+  $auspost_services = array_filter(variable_get('uc_auspost_intl_services', _uc_auspost_intl_services()));
+  
+  foreach ($services as $service => $service_quote) {
+    if (!in_array($service, $auspost_services)) {
+      unset($services[$service]);
+    }
+  }
+  foreach ($services as $key => $service_quote) {
+
+    $rate = 0;
+    $days = array();
+    foreach ($service_quote['products'] as $quote) {
+      if ($quote['quote_message'] = 'OK') {
+        $rate += $quote['quote_amount'];
+        $days[] = $quote['quote_days'];
+        $error = false;
+      } else {
+        $error = true;
+      }
+    }
+    // Get the longest time estimate per shipping method
+    // i.e. If the shipment contains multiple packages, some may
+    // take longer than others. uc_auspost returns the longest
+    // time estimate.
+    sort($days);
+    $days = array_pop($days);
+  
+    // Add in any admin or weekend-based extra time
+    $days = _uc_auspost_factor_processing_time($days);
+    
+    // Return the quote if the rate returned is more than $0.00
+    if ($rate > 0) {
+      $rate = uc_auspost_markup($rate);
+      $quotes[$key] = array('rate' => $rate, 'format' => uc_currency_format($rate), 'option_label' => _uc_get_option_label($key,$days));
+    } else {
+      //watchdog('uc_auspost',"Could not retrieve rates for $rate",'WATCHDOG_NOTICE');
+    }        
+  }
+  
+  uasort($quotes, 'uc_quote_price_sort');
+
+  return $quotes;
+}
+
+/**
+ * Fetch an estimate from Australia Post's eDRC site.
+ * 
+ * @param $product
+ *    The request URL
+ * @return array - charge | shipping time estimate | message
+ *     
+ */
+function _uc_auspost_fetch_quote($request) {
+  $response = file($request);
+  
+  $charge = split('=',$response[0]);
+  $ship_time = split('=',$response[1]);    
+  $return_msg = split('=',$response[2]);
+  $response = array($charge[0] => $charge[1],$ship_time[0] => $ship_time[1],$return_msg[0] => $return_msg[1]);
+
+  return $response;
+}
+
+
+/**
+ * Return the services (or accessorials) that Australia Post offers
+ * 
+ * This function offers 3 features:
+ * 1. Passing no $id or $type will return the full list of accessorials
+ * 2. Passing an $id but no $type will return the full name of the accessorial specified by $id
+ * 3. Passing no $id but a $type of 'international' or 'domestic' will return all requested accessorials for that zone
+ * 
+ * @param $id
+ *     The ID of the accessorial to return the full name for
+ * @param $type
+ *     domestic | international
+ * @return
+ *     Return the requested service accessorials
+ */
+function _uc_auspost_services() {
+  return array(
+    'STANDARD' => t('Standard Delivery'),
+    'EXPRESS' => t('Express Post Delivery')
+  );
+}
+
+function _uc_auspost_intl_services() {
+  return array(
+    'AIR' => t('International Air Delivery'),
+    'SEA' => t('International Surface Delivery'),
+    'ECI_D' => t('Express Courier International Document'),
+    'ECI_M' => t('Express Courier International Merchandise'),
+    'EPI' => t('Express Post International')
+  );
+}
+
+function _uc_auspost_get_service($accessorial_id) {
+  $services = _uc_auspost_services();
+  return $services[$accessorial_id];
+}
+
+/**
+ * Return the relevant option label image
+ * 
+ * @param $accessorial_id
+ *     ID of the accessorial item to return the option label for
+ * @param $days
+ *     Display the 'days' text? (true | false)
+ */
+function _uc_get_option_label($accessorial_id,$days = null) {
+
+  // Is it "Day" or "Days"?
+  if (!is_null($days)) {
+    if ($days >= 2) {
+      $text = t('Days');
+    } else {
+      $text = t('Day');
+    }
+    
+    // If "diaplay estimate" is enabled, form the estimate.
+    switch (variable_get('uc_auspost_display_time_estimate',null)) {
+      case 1:
+        $days_text = '<span class ="shipping_time_estimate">(' . $days . ' ' . $text . ')</span>';
+        break;
+      case 0:
+        $days_text ='';
+        break;
+    }
+    $days_text = '<span class ="shipping_time_estimate">(' . $days . ' ' . $text . ')</span>';
+  } else {
+    $days_text ='';
+  }
+  
+  // Is "display service graphics" enabled?
+  switch (variable_get('uc_auspost_display_graphics',null)) {
+    case 1:
+      $string = '<img class="service_logo" src="' . base_path() . drupal_get_path('module', 'uc_auspost') . '/img/' . $accessorial_id . '.png" alt="'. _uc_auspost_get_service($accessorial_id) . '"/> ' . $days_text;
+      break;
+    case 0:
+      $string = _uc_auspost_get_service($accessorial_id) . ' ' . $days_text;
+      break;
+  }
+  return $string;
+}
+
+/**
+ * Defines the default measurements for packages. Can return a specific request for measurement
+ * 
+ * All measurements defined in the units requested by the DRC. Weight in (g), and Length in (mm)
+ * 
+ * @param $request
+ *     min_weight | max_weight | min_length | max_length | min_width | max_width | min_height | max_height
+ */
+function _uc_auspost_get_defaults($request = null) {
+  $defaults = array(
+    'min_weight'  =>  50,    //No minimum weight (50 Grams is reasonable)
+    'max_weight'  =>  20000,  //20KG
+    'min_length'  =>  10,    //No minimum length (10mm is reasonable)
+    'max_length'  =>  1050,  //1.05M
+    'min_width'    =>  160,   //16CM
+    'max_width'    =>  1050,  //1.05M
+    'min_height'  =>  160,   //16CM
+    'max_height'  =>  1050  //1.05M
+  );
+
+  
+  if($request) {
+    $return = $defaults[$request];
+  } else {
+    $return = $defaults;    
+  }
+
+  return $return;
+}
+
+/**
+ * Round a floating point integer up
+ * 
+ * @param $value
+ *     Float to be rounded up
+ */
+function _uc_auspost_roundup($value)
+{
+    return ceil($value*pow(10, 0))/pow(10, 0);
+}
+
+/**
+ * Factor in processing time from the store admin settings,
+ * as well as weekends. Eg. If the order is placed on a Friday,
+ * 2 days will be added to the shipment time.
+ * 
+ * @param $raw_days
+ *     Raw number of days from eDRC quote
+ */
+function _uc_auspost_factor_processing_time($raw_days) {
+  // If the value retrieved from the admin form is an integer, use it. If not, use '0' as the value
+  $processing_time = is_integer(variable_get('uc_auspost_shipment_time',null)) ? 0 : variable_get('uc_auspost_shipment_time',null);
+  
+  // Add the admin-specified processing time onto the raw quote estimate
+  $return_days = $processing_time + $raw_days;
+  
+  // Add some leeway for orders placed just before, or on, the weekend.
+  switch (date('w')) {
+    case 5: //Friday
+      $return_days += 3; // Add 3 days
+      break;
+    case 6: //Saturday
+      $return_days += 2; // Add 2 days
+      break;
+    case 0: //Sunday
+      $return_days += 1; // Add 1 day
+      break;
+  }
+  
+  return $return_days;
+}
+
+/**
+ * Apply any admin-specified markups to the
+ * amount received from the eDRC
+ * 
+ * @param $rate
+ *     The original rate to apply the markup to
+ */
+function uc_auspost_markup($rate) {
+  $markup = variable_get('uc_auspost_markup', '0');
+  $type = variable_get('uc_auspost_markup_type', 'percentage');
+  if (is_numeric(trim($markup))) {
+    switch ($type) {
+      case 'percentage':
+        return $rate + $rate * floatval(trim($markup)) / 100;
+      case 'multiplier':
+        return $rate * floatval(trim($markup));
+      case 'currency':
+        return $rate + floatval(trim($markup));
+    }
+  }
+  else {
+    return $rate;
+  }
+}
+
+function _uc_auspost_package_products($products, &$addresses) {
+  $last_key = 0;
+  $packages = array();
+
+  if (variable_get('uc_auspost_all_in_one', TRUE) && count($products) > 1) {
+  
+    // Retrieve the maximum allowed package weight
+    $max_weight = _uc_auspost_get_defaults('max_weight');
+  
+    foreach ($products as $product) {
+      if ($product->nid) {
+        $address = (array)uc_quote_get_default_shipping_address($product->nid);
+        $key = array_search($address, $addresses);
+        if ($key === FALSE) {
+          $addresses[++$last_key] = $address;
+          $key = $last_key;
+          $packages[$key][0] = new stdClass();
+        }
+      }
+      $packages[$key][0]->weight += $product->weight * $product->qty * uc_weight_conversion($product->weight_units, 'g');
+      //$conversion = uc_length_conversion($product->length_units, 'mm');
+      $packages[$key][0]->price += $product->price * $product->qty;
+      // Pass some bogus measurements to the eDRC. They have no bearing on the quote itself?
+      $packages[$key][0]->length = 250;
+      $packages[$key][0]->width = 250;
+      $packages[$key][0]->height = 250;
+    }
+    foreach ($packages as $key => $package) {
+      if (!$package[0]->weight) {
+        unset($packages[$key]);
+        continue;
+      } else {
+        // Check to see if package is heavier than max weight
+        if ($package[0]->weight > $max_weight) {
+          // Calculate the number of packages needed
+          $num_packages = $package[0]->weight / $max_weight;
+          $num_packages = _uc_auspost_roundup($num_packages);
+          // Divide the package weight evenly between all packages
+          $pkg_weight = ($package[0]->weight / $num_packages);
+          $package[0]->weight = $pkg_weight;
+          // Change the quantity of packages. Overall weight will be the same.
+          $package[0]->qty = $num_packages;
+        } else {
+          $package[0]->qty = 1;
+        }
+      }    
+      $packages[$key][0]->length_units = 'mm';
+      $packages[$key][0]->weight_units = 'g';
+    }
+  }
+  else {
+    foreach ($products as $product) {
+      if ($product->nid) {
+        $address = (array)uc_quote_get_default_shipping_address($product->nid);
+        $key = array_search($address, $addresses);
+        if ($key === FALSE) {
+          $addresses[++$last_key] = $address;
+          $key = $last_key;
+        }
+      }
+      if (!$product->pkg_qty) {
+        $product->pkg_qty = 1;
+      }
+      $num_of_pkgs = (int)($product->qty / $product->pkg_qty);
+    
+      if ($num_of_pkgs) {
+        $package = drupal_clone($product);
+        $package->weight = $product->weight * $product->pkg_qty * uc_weight_conversion($product->weight_units, 'g');;
+        $length_conversion = uc_length_conversion($product->length_units, 'mm');
+        $package->length = max($product->length, $product->width) * $length_conversion;
+        $package->width = min($product->length, $product->width) * $length_conversion;
+        $package->height = $product->height * $length_conversion;
+        if ($package->length < $package->width) {
+          list($package->length, $package->width) = array($package->width, $package->length);
+        }
+        $package->price = $product->price * $product->pkg_qty;
+        $package->qty = $num_of_pkgs;
+        
+        if ($package->weight) {
+          $packages[$key][] = $package;
+        }
+      }
+    
+      $remaining_qty = $product->qty % $product->pkg_qty;
+      if ($remaining_qty) {
+      
+        $package = drupal_clone($product);
+        $package->description = $product->model;
+        $package->weight = $product->weight * $remaining_qty * uc_weight_conversion($product->weight_units, 'g');
+        $length_conversion = uc_length_conversion($product->length_units, 'mm');
+        $package->length = max($product->length, $product->width) * $length_conversion;
+        $package->width = min($product->length, $product->width) * $length_conversion;
+        $package->height = $product->height * $length_conversion;
+        $package->price = $product->price * $remaining_qty;
+        $package->qty = 1;
+        
+        if ($package->weight) {
+          $packages[$key][] = $package;
+        }
+      }
+    }
+  }
+  return $packages;
+}
+
+function uc_auspost_rate_request($package, $origin, $destination, $auspost_service) {
+  $shipto_country = uc_get_country_data(array('country_id' => $destination->country));
+  $shipto_country = $shipto_country[0]['country_iso_code_2'];
+  
+  $request  =  variable_get('uc_auspost_uri',null);
+
+  $request .= '?Pickup_Postcode='. $origin->postal_code.
+    '&Destination_Postcode='.$destination->postal_code.
+    '&Country='.$shipto_country.
+    '&Weight='.$package->weight.
+    '&Service_Type='.$auspost_service.
+    '&Length='.$package->length.
+    '&Width='.$package->width.
+    '&Height='.$package->height.
+    '&Quantity='.$package->qty;
+
+  return $request;
+}
+?>

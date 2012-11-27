@@ -1,0 +1,5 @@
+/*** uc_vat ***/
+Add
+  $price['price'] = round($price['price']);
+on line
+  597

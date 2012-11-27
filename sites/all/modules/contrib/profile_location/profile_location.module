@@ -1,0 +1,448 @@
+<?php
+
+/**
+ * @file
+ * The profile_location.module file, which produces the primary functionality.
+ *
+ */
+
+define('PRIMARY_COUNTRY', 'US'); // 2-letter capitalized iso abbreviation for primary country
+define('SECONDARY_COUNTRY', 'CA'); // 2-letter capitalized iso abbreviation for secondary country
+
+/**
+ * Implementation of hook_help().
+ */
+function profile_location_help($path, $arg) {
+  switch ($path) {
+    case 'admin/user/profile_location':
+      return '<p>'. t('Select the countries to appear at the top of the alphabetical country list to ease choosing of the most popular selections.') .'</p>';
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function profile_location_menu() {
+  $items = array();
+
+  $items['admin/user/profile_location'] = array(
+    'title' => 'Profile location',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('profile_location_list_form'),
+    'access arguments' => array('administer site configuration'),
+    'description' => 'Manage profile location sticky countries and settings.',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/user/profile_location/list'] = array(
+    'title' => 'Sticky',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('profile_location_list_form'),
+    'access arguments' => array('administer site configuration'),
+    'weight' => 0,
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/user/profile_location/settings'] = array(
+    'title' => 'Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('profile_location_admin_form'),
+    'access arguments' => array('administer site configuration'),
+    'weight' => 1,
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function profile_location_form_alter(&$form, $form_state, $form_id) {
+  switch ($form_id) {
+    case 'user_register':
+    case 'user_profile_form':
+      if (module_exists('profile')) {
+        $category = variable_get('profile_location_category', NULL);
+        $country = variable_get('profile_location_country', NULL);
+        $state = variable_get('profile_location_state', NULL);
+
+        if (isset($form[$category][$country])) {
+          $default_value = empty($form[$category][$country]['#default_value']) ? variable_get('profile_location_default_country', PRIMARY_COUNTRY) : $form[$category][$country]['#default_value'];
+          // load profile country list selection field options
+          $form[$category][$country]['#options'] = profile_location_countries_stickies($default_value);
+          $form[$category][$country]['#default_value'] = $default_value;
+          $form[$category][$country]['#theme'] = 'separator_option';
+          
+          $form['#submit'][] = 'profile_location_submit_handler';
+        }
+
+        if (isset($form[$category][$state])) {
+          // create province element from state element
+          $form[$category]['profile_province'] = $form[$category][$state];
+
+          // load state field options
+          $form[$category][$state]['#prefix'] = '<div id="state" style="display: none;" >';
+          $form[$category][$state]['#options'] = profile_location_states(PRIMARY_COUNTRY);
+          $form[$category][$state]['#required'] = variable_get('profile_location_state_required', NULL);
+          $form[$category][$state]['#suffix'] = '</div>';
+
+          // load province field options
+          $form[$category]['profile_province']['#prefix'] = '<div id="province" style="display: none;" >';
+          $form[$category]['profile_province']['#options'] = profile_location_states(SECONDARY_COUNTRY);
+          $form[$category]['profile_province']['#required'] = variable_get('profile_location_state_required', NULL);
+          $form[$category]['profile_province']['#suffix'] = '</div>';
+
+          $form['#validate'][] = 'profile_location_validate_handler';
+        }
+
+        // show/hide state/province divs according to country selection
+        drupal_add_js(
+          "$.fn.showIf = function( show, arg ) {
+             return this[ show ? 'show' : 'hide' ]( arg );
+           };
+           $().ready(function() {
+             $('#edit-". str_replace('_', '-', $country) ."').change(function() {
+               // strip sticky asterisk, if any
+               var country = $(this).val().replace(/[*]/, '');
+               $('#state').showIf( country == '". PRIMARY_COUNTRY ."' );
+               $('#province').showIf( country == '". SECONDARY_COUNTRY ."' );
+             }).trigger('change');
+           }); ",
+           'inline');
+      }
+      break;
+    case 'profile_field_form':
+      if (arg(3) == 'edit' && is_numeric(arg(4))) {
+        if ($form['fields']['name']['#default_value'] == variable_get('profile_location_state', NULL)) {
+          // profile field is assigned as state field, disabled required input checkbox and add explanation
+          $form['fields']['required']['#disabled'] = TRUE;
+          $form['fields']['required']['#description'] = t('Attention: to prevent validation errors use the required input option found on the !link page.', array('!link' => l('Profile Location settings', 'admin/user/profile_location/settings')));
+        }
+      }
+      break;
+  }
+}
+
+/**
+ * Custom theme function to alter separator option in country options.
+ */
+function theme_separator_option($element) {
+  // appends disabled attribute to special separator hypen option key
+  $output = str_replace('<option value="-">', '<option value="-" disabled="disabled">', theme('select', $element));
+  return $output;
+}
+
+/**
+ * Custom validate handler to set state/province value (if applicable).
+ */
+function profile_location_validate_handler($form, &$form_state) {
+  $category = variable_get('profile_location_category', NULL);
+  $country = variable_get('profile_location_country', NULL);
+  $state = variable_get('profile_location_state', NULL);
+  $iso = ltrim($form_state['values'][$country], '*');
+  if ($iso == SECONDARY_COUNTRY) {
+    // update state value with province selection
+    form_set_value($form[$category][$state], $form_state['values']['profile_province'], $form_state);
+  }
+  else if ($iso != PRIMARY_COUNTRY) {
+    // non US/CA country selection so clear state value
+    form_set_value($form[$category][$state], NULL, $form_state);
+  }
+  if (variable_get('profile_location_state_required', NULL)) {
+    // custom validation when state/province field is required
+    if (($iso == PRIMARY_COUNTRY && empty($form_state['values'][$state])) || ($iso == SECONDARY_COUNTRY && empty($form_state['values']['profile_province']))) {
+      form_set_error($state, t('%state field is required.', array('%state' => $form[$category][$state]['#title'])));
+    }
+  }
+}
+
+/**
+ * Custom submit handler to strip sticky key prefix.
+ */
+function profile_location_submit_handler($form, &$form_state) {
+  $country = variable_get('profile_location_country', NULL);
+  $form_state['values'][$country] = ltrim($form_state['values'][$country], '*');
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function profile_location_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'insert':
+    case 'submit':
+      // housecleaning, remove profile_province from user account data
+      $edit['profile_province'] = NULL;
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_profile_alter().
+ */
+function profile_location_profile_alter(&$account) {
+  $profile = user_load($account->uid);
+  $category = variable_get('profile_location_category', NULL);
+  $country = variable_get('profile_location_country', NULL);
+  $state = variable_get('profile_location_state', NULL);
+  if ($state) {
+    $account->content[$category][$state]['#value'] = profile_location_get_state($profile->$country, $account->content[$category][$state]['#value']);
+  }
+  if ($country) {
+    $account->content[$category][$country]['#value'] = profile_location_get_country($account->content[$category][$country]['#value']);
+  }
+}
+
+/**
+ * Retrieve list of countries prepended w/ stickies.
+ *
+ * @param string
+ * @returns array
+ */
+function profile_location_countries_stickies(&$default_value) {
+  $countries = profile_location_countries();
+
+  $stickies = array();
+  $selections = array_keys(variable_get('profile_location_sticky', array()));
+  foreach ($selections as $key => $value) {
+    if ($value == $default_value) {
+      // default value equals a sticky country, prepend asterisk to iso code
+      $default_value = '*'. $value;
+    }
+    // prepend asterisk to sticky key
+    $stickies['*'. $value] = $countries[$value];
+  }
+
+  if (count($stickies)) {
+    // prepend sticky countries plus special separator option with hyphen key
+    $separator = array('-' => '--------------------');
+    $stack = array_merge($stickies, $separator, $countries);
+    $countries = $stack;
+  }
+
+  return $countries;
+}
+
+/**
+ * Retrieve list of countries.
+ *
+ * @returns array
+ */
+function profile_location_countries() {
+  $countries = array();
+  $result = db_query("SELECT * FROM {profile_location_country} ORDER BY name ASC");
+  while ($country = db_fetch_object($result)) {
+    $countries[$country->iso] = $country->name;
+  }
+
+  return $countries;
+}
+
+/**
+ * Retrieve full country name.
+ *
+ * @param string
+ * @returns string
+ */
+function profile_location_get_country($iso) {
+  $countries = profile_location_countries();
+
+  return $countries[$iso];
+}
+
+/**
+ * Retrieve list of US states or CA provinces
+ *
+ * @param   string
+ * @returns array
+ */
+function profile_location_states($iso) {
+  // define default value when selection is optional
+  $states = array(t('--- select ---'));
+  $result = db_query("SELECT abbrev, name FROM {profile_location_state} WHERE iso = '%s' ORDER BY name ASC", $iso);
+  while ($state = db_fetch_object($result)) {
+    $states[$state->abbrev] = $state->name;
+  }
+
+  return $states;
+}
+
+/**
+ * Retrieve full state/province name.
+ *
+ * @param string
+ * @param string
+ * @returns string
+ */
+function profile_location_get_state($iso, $apprev) {
+  $states = profile_location_states($iso);
+
+  return $states[$apprev];
+}
+
+/**
+ * Custom function for profile location admin form.
+ */
+function profile_location_admin_form() {
+  $result = db_query("SELECT fid, name, category FROM {profile_fields} WHERE type = 'selection'");
+
+  $options = array();
+  while ($select = db_fetch_object($result)) {
+    $options[$select->name] = $select->name .' ('. $select->category .')';
+  }
+
+  if (count($options)) {
+    $form['profile_location_default_country'] = array(
+      '#type' => 'select',
+      '#default_value' => variable_get('profile_location_default_country', PRIMARY_COUNTRY),
+      '#options' => profile_location_countries(),
+      '#description' => t('Choose the default Country selection.'),
+    );
+    $form['profile_location_country'] = array(
+      '#type' => 'select',
+      '#default_value' => variable_get('profile_location_country', NULL),
+      '#options' => $options,
+      '#description' => t('Choose a profile list selection field to use for Country.'),
+    );
+    $form['profile_location_state'] = array(
+      '#type' => 'select',
+      '#default_value' => variable_get('profile_location_state', NULL),
+      '#options' => $options,
+      '#description' => t('Choose a profile list selection field to use for State/Province.'),
+    );
+    $form['profile_location_state_required'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('The user must select a state.'),
+      '#default_value' => variable_get('profile_location_state_required', NULL),
+      '#description' => t('Important: to prevent validation errors use this option instead of the list selection required field setting when state selection is required.'),
+    );
+
+    $form['#submit'][] = 'profile_location_admin_form_submit';
+
+    return system_settings_form($form);
+  }
+  else {
+    drupal_set_message(t('You must first create !profile list selection fields for both Country and State.', array('!profile' => l('profile', 'admin/user/profile'))), 'error');
+    return FALSE;
+  }
+}
+
+/**
+ * Profile location admin form validation function.
+ */
+function profile_location_admin_form_validate($form, &$form_state) {
+  if ($form_state['values']['profile_location_country'] == $form_state['values']['profile_location_state']) {
+    form_set_error('profile_location_state', t('Country and state/province cannot be the same profile list selection field.'));
+  }
+  $result = db_query("SELECT pf1.name, pf2.name, pf1.category FROM {profile_fields} pf1, {profile_fields} pf2
+                      WHERE pf1.name = '%s' AND pf2.name = '%s' AND pf1.category = pf2.category",
+                      $form_state['values']['profile_location_country'], $form_state['values']['profile_location_state']);
+  if ($profile = db_fetch_object($result)) {
+    // country and state/province fields belong to the same profile category
+    // manually save the profile category because it's not part of the form
+    variable_set('profile_location_category', $profile->category);
+  }
+  else {
+    form_set_error('profile_location_state', t('Country and State/Province fields must belong to the same profile category.'));
+  }
+}
+
+/**
+ * Profile location admin form submit function.
+ */
+function profile_location_admin_form_submit($form, &$form_state) {
+  if ($form_state['values']['profile_location_state_required']) {
+    // forcibly remove required input setting from state field to prevent validation errors
+    db_query("UPDATE {profile_fields} SET required = 0 WHERE name = '%s'", $form_state['values']['profile_location_state']);
+    drupal_set_message(t('Attention: required setting for &field state profile list selection field has been disabled to prevent core profile module validation errors.', array('&field' => $form_state['values']['profile_location_state'])), 'warning');
+  }
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function profile_location_theme() {
+  return array(
+    'profile_location_list_form' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'separator_option' => array(
+      'arguments' => array('element' => NULL),
+    ),
+  );
+}
+
+/**
+ * Custom callback function to list countries.
+ */
+function profile_location_list_form($form_state) {
+  $header = array(
+    array(),
+    t('Country'),
+  );
+
+  $options = array();
+  $defaults = array();
+  $result = db_query("SELECT * FROM {profile_location_country} ORDER BY name ASC");
+  while ($country = db_fetch_object($result)) {
+    $options[$country->iso] = '';
+    if ($country->sticky) {
+      $defaults[] = $country->iso;
+    }
+    $form['name'][$country->iso] = array(
+      '#value' => $country->name
+    );
+  }
+  
+  $form['sticky'] = array(
+    '#type' => 'checkboxes',
+    '#options' => $options,
+    '#default_value' => $defaults,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update sticky')
+  );
+
+  return $form;
+}
+
+/**
+ * Theme profile_location_list_form().
+ */
+function theme_profile_location_list_form($form) {
+  $header = array(
+    theme('table_select_header_cell'),
+    t('Country'),
+  );
+
+  foreach (element_children($form['name']) as $key) {
+    $rows[] = array(
+      drupal_render($form['sticky'][$key]),
+      drupal_render($form['name'][$key]),
+    );
+  }
+
+  $output = theme('table', $header, $rows);
+  $output .= drupal_render($form);
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_submit().
+ */
+function profile_location_list_form_submit($form, &$form_state) {
+  // clear all current sticky selections
+  db_query("UPDATE {profile_location_country} SET sticky = 0");
+
+  // store sticky selections
+  $stickies = array_filter($form_state['values']['sticky']);
+  foreach ($stickies as $iso) {
+    db_query("UPDATE {profile_location_country} SET sticky = 1 WHERE iso = '%s'", $iso);
+  }
+  // save an extra trip to the database when editing a user profile
+  // store stickies selections in a system variable
+  variable_set('profile_location_sticky', $stickies);
+
+  drupal_set_message(t('Updated sticky countries.'));
+}
