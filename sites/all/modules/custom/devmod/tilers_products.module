@@ -323,7 +323,7 @@ function tilers_products_form_alter(&$form, &$form_state, $form_id){
   
   // 
   if ($form_id == "uc_cart_view_form"){
-    /*if (!isset($user->uid) || $user->uid == 0){
+    if (!isset($user->uid) || $user->uid == 0){
         drupal_set_message('You need to log in OR OR to create an account to proceed to checkout.');
         $form['#submit'][] = 'tilers_order_register';
         $form['register'] = array(
@@ -332,7 +332,7 @@ function tilers_products_form_alter(&$form, &$form_state, $form_id){
             '#submit' => array(0 => 'tilers_order_register')
         );
         unset($form['checkout']);
-    }*/
+    }
 
     // Update the name of the item to show the name of the option insead of the name of the main item
     foreach ($form['items'] as $key => $item){

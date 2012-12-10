@@ -99,7 +99,7 @@
       <div class="inner">
         <?php if ($page == 0): ?>
         <h2 class="title"><a href="<?php print $node_url ?>" title="<?php print $title ?>">
-	    <?php print $title  ?>
+	    <?php print $title  ?> 
 	</a></h2>
         <?php endif; ?>
 	
@@ -111,9 +111,11 @@
 		    print acquia_prosper_image_gallery($node);
 		} ?>
 	    </div><!-- /images -->
-
 	    <div class="prices">
 	    
+	    	<?php if (isset($variations)){
+	    		print acquia_prosper_variation_list($node->nid, $variations);
+	    	} ?>
                 <?php print $fusion_uc_add_to_cart; ?>
 		
                 <div class="stock-status">

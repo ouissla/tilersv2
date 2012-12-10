@@ -44,5 +44,5 @@ function trueerp_schema() {
  *
  */
 function trueerp_install() {
-   drupal_install_schema('trueerp');
+  drupal_install_schema('trueerp');
 }

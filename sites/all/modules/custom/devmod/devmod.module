@@ -35,6 +35,30 @@ function devmod_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['newproducts'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'newproducts',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['setismaster'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'setismaster',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['allvar'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'allvar',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -269,4 +293,175 @@ function devmod_create_nodequeues(){
       nodequeue_save($nodequeue);
     }
 
+}
+
+
+function newproducts(){
+    ini_set('max_execution_time', 500);
+    require_once 'modules/node/node.pages.inc';
+
+    $sql = db_query('SELECT * FROM uc_product_adjustments');
+    $adjustments = array();
+    while ($data = db_fetch_object($sql)){
+        $adjustments[$data->model] = array(
+            'master_nid' => $data->nid
+        );
+    }
+    dsm($adjustments);
+
+    $sql = db_query('SELECT nid FROM node WHERE type = "%s"', 'variation');
+    while ($data = db_fetch_object($sql)){
+        $variation = node_load($data->nid);
+        $oid = $variation->field_variation_oid[0]['value'];
+dsm($variation);
+        // get sku
+        //$sku = $adjustments[$oid]['sku'];
+        $sku_object = db_fetch_object(db_query('SELECT sku FROM tilers_erp_products WHERE oid = %d', $oid));
+        $sku = $sku_object->sku;
+
+        // get master id
+        $master_id = $adjustments[$sku]['master_id'];
+
+
+        $master = node_load($master_id);
+dsm($master);
+dsm('oko');
+        $master_list_price = $master->list_price;
+        $master_sell_price = $master->sell_price;
+        $master_cost = $master->cost;
+
+        // Get option price
+        $option_price = $product_option->price;
+
+        $node = new stdClass();
+        $node->type = $master->type;
+        node_object_prepare($node); 
+        // Copy over all the existing settings from Drupal.
+        $node->uid = 1;
+        $node->status = 1;
+        $node->title = $variation->title;
+        $node->body = $variation->body;
+        $node->created = time();
+        $node->changed = time();
+        // Set Ubercart variables
+        $node->model = $variation_sku->model; 
+        $node->list_price = round($master_list_price + $option_price, 2);
+        $node->cost       = round($master_cost + $option_price, 2);
+        $node->sell_price = round($master_sell_price + $option_price, 2);
+        $node->default_qty = 1;
+        $node->pkg_qty = 1;
+
+
+        $node->field_product_short_description[0]['value'] = $variation->field_product_short_description[0]['value'];
+
+        if (!is_null($variation->field_pdf[0])){
+            $node->field_pdf[0]['value'] = $variation->field_pdf[0]['value'];
+        } else {
+            $node->field_pdf[0]['value'] = $master->field_pdf[0]['value'];
+        }
+
+        if (!is_null($variation->field_product_manuals[0])){
+            $node->field_product_manuals = $variation->field_product_manuals;
+        } else {
+            $node->field_product_manuals = $master->field_product_manuals;
+        }
+
+        if (!is_null($variation->field_product_videos[0])){
+            $node->field_product_videos[0]['value'] = $variation->field_product_videos[0]['value'];
+        } else {
+            $node->field_product_videos[0]['value'] = $master->field_product_videos[0]['value'];
+        }
+
+        if (!is_null($variation->field_product_delivery[0]['value'])){
+            $node->field_product_delivery[0]['value'] = $variation->field_product_delivery[0]['value'];
+        } else {
+            $node->field_product_delivery[0]['value'] = $master->field_product_delivery[0]['value'];
+        }
+
+        if (!is_null($master->field_product_delivery_tab[0]['value'])){
+            $node->field_product_delivery_tab[0]['value'] = $master->field_product_delivery_tab[0]['value'];
+        } 
+
+        if (!is_null($variation->field_product_images[0])){
+            $node->field_product_images = $variation->field_product_images;
+        } else {            
+            $node->field_product_images = $master->field_product_images;
+        }
+
+        if (!is_null($variation->field_related_products[0])){
+            $node->field_related_products = $variation->field_related_products;
+        } else {            
+            $node->field_related_products = $master->field_related_products;
+        }
+
+        if (!is_null($master->field_product_price_on_demand[0])){
+            $node->field_product_price_on_demand = $master->field_product_price_on_demand;
+        } 
+
+        if (!is_null($master->field_product_price_on_demand[0])){
+            $node->field_product_price_on_demand = $master->field_product_price_on_demand;
+        } 
+
+        $node->field_product_is_master[0]['value'] = 0;
+        $node->field_product_master_id[0]['value'] = $master->nid;
+        $node->field_product_hide_list[0]['value'] = 1;
+
+        // Save the node
+        //node_save($node);
+
+
+        $master->field_product_is_master[0]['value'] = 1;
+        //node_save($master);
+
+        // price per role option
+        $oid = $variation->field_variation_oid[0]['value'];
+        $ppro = db_query('SELECT rid, price FROM uc_price_per_role_option_prices WHERE oid = %d', $oid);
+
+        /*$prices_role = array();
+        while ($data = db_fetch_object($ppro)){
+            db_query('INSERT INTO uc_price_per_role_prices(rpid, vid, nid, rid, price) VALUES (null, %d, %d, %d, %d)', $node->vid, $node->nid, $data->rid, $data->price);
+        }*/
+
+        dsm('variation ' . l('node/' . $variation->nid, 'node/' . $variation->nid) . ' --- product ' . l('node/' . $node->nid, 'node/' . $node->nid));
+
+
+    }
+return 'ok';
+}
+
+//SET IS MASTER
+function setismaster(){
+    ini_set('max_execution_time', 500);
+    $sql = db_query('SELECT field_product_master_id_value FROM content_field_product_master_id');
+
+    while ($data = db_fetch_object($sql)){
+        $master = node_load($data->field_product_master_id_value);
+        $master->field_product_is_master[0]['value'] = 1;
+        node_save($master);
+    }
+
+    return 'done';
+}
+
+
+function allvar(){
+    $sql = db_query('SELECT * FROM content_field_product_master_id WHERE field_product_master_id_value IS NOT NULL');
+    $a = array();
+    while ($data = db_fetch_object($sql)){
+        if (!isset($a[$data->field_product_master_id_value])){
+            $a[$data->field_product_master_id_value] = array();
+        }
+        $a[$data->field_product_master_id_value][] = $data->nid;
+    }
+
+    $output = '';
+    foreach ($a as $key => $value){
+        $output .= '<a href="/node/' . $key . '/edit">' . $key . '</a><br />';
+
+        foreach ($value as $v){
+            $output .= '-----<a href="/node/' . $v . '/edit">' . $v . '</a><br />';
+        }
+    }
+
+    return $output;
 }
