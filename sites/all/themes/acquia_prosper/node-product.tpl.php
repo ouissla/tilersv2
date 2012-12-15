@@ -39,38 +39,38 @@
 	<?php } else { ?>
 
 	    <div id="node-<?php print $node->nid; ?>" class="node-teaser node clear-block product_in_list <?php print $node_classes; ?>">
-				<?php print theme('grid_block', $tabs, 'content-tabs'); ?>
-	          <div class="images">
+			<?php print theme('grid_block', $tabs, 'content-tabs'); ?>
+	        <div class="images">
 		      
-	              <a href="<?php print $node_url ?>" title="<?php print $title ?>">
-		      <?php $image_info = image_get_info($node->field_product_images[0]['filepath']); ?>
-		      <?php $image_style = ($image_info['width'] > $image_info['height']) ? 'product_list' : 'product_list_h';
-			print theme('imagecache', $image_style, $node->field_product_images[0]['filepath'], $node->field_product_images[0]['data']['alt'], $node->field_product_images[0]['data']['title']);
-		       ?>
-	              </a>
-	          </div><!-- /images -->
+	            <a href="<?php print $node_url ?>" title="<?php print $title ?>">
+		    	<?php $image_info = image_get_info($node->field_product_images[0]['filepath']); ?>
+		    	<?php $image_style = ($image_info['width'] > $image_info['height']) ? 'product_list' : 'product_list_h';
+				print theme('imagecache', $image_style, $node->field_product_images[0]['filepath'], $node->field_product_images[0]['data']['alt'], $node->field_product_images[0]['data']['title']);
+		    	?>
+	            </a>
+	        </div><!-- /images -->
 
-	          <div class="content grey-box-wrapper">
+	        <div class="content grey-box-wrapper">
 
 	            <?php $product_details = $fusion_uc_weight || $fusion_uc_dimensions || $fusion_uc_list_price || $fusion_uc_sell_price || $fusion_uc_model || $fusion_uc_cost; ?>
 	            <div class="product-details grey-box clear<?php if (!$product_details): ?> field-group-empty<?php endif; ?>">
 	                <h2 class="title">
-			    <a href="<?php print $node_url ?>" title="<?php print $title ?>">
-				<?php if ($node->field_product_group_title[0]['value'] == ''){ 
-				    print $title ;
-				} else {
-				    print $node->field_product_group_title[0]['value'];
-				} ?>
-			    </a>
-			</h2>
+			    		<a href="<?php print $node_url ?>" title="<?php print $title ?>">
+						<?php if ($node->field_product_group_title[0]['value'] == ''){ 
+				    	print $title ;
+						} else {
+				    	print $node->field_product_group_title[0]['value'];
+						} ?>
+			    		</a>
+					</h2>
 			
 	                <div class="price-group">
-	                    <?php if ($node->field_product_price_on_demand[0]['value'] == 0){
-				print $fusion_uc_display_price;
-			    } else {
-				echo '<div class="price-on-request"><p>Price on request</p></div>';
-			    } ?>
-			    <?php if ($has_options) { echo '<span class="from">from </span>'; } ?>
+		                <?php if ($node->field_product_price_on_demand[0]['value'] == 0){
+							print $fusion_uc_display_price;
+					    } else {
+							echo '<div class="price-on-request"><p>Price on request</p></div>';
+					    } ?>
+				    	<?php if ($has_options) { echo '<span class="from">from </span>'; } ?>
 	                    <?php //print $fusion_uc_add_to_cart; ?>
 	                </div>
 
@@ -99,7 +99,7 @@
       <div class="inner">
         <?php if ($page == 0): ?>
         <h2 class="title"><a href="<?php print $node_url ?>" title="<?php print $title ?>">
-	    <?php print $title  ?> 
+	    <?php print $node->title  ?> 
 	</a></h2>
         <?php endif; ?>
 	

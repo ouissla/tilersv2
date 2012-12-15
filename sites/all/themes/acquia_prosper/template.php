@@ -94,7 +94,8 @@ function acquia_prosper_preprocess_node(&$variables){
       if ($node->field_product_is_master[0]['value']){
         $sql = db_query('SELECT n.nid FROM {node} n
           LEFT JOIN {content_field_product_master_id} c ON c.nid = n.nid
-          WHERE c.field_product_master_id_value = %d', $node->nid);
+          WHERE c.field_product_master_id_value = %d
+          AND n.status = 1', $node->nid);
 
         if (isset($user->roles[4]) || isset($user->roles[5])){
           if (isset($user->roles[4])){
@@ -105,6 +106,7 @@ function acquia_prosper_preprocess_node(&$variables){
         } else {
           $price = $node->sell_price;
         }
+
         $variations = array(
           0 => array(
             'title' => $node->title,
@@ -139,7 +141,8 @@ function acquia_prosper_preprocess_node(&$variables){
       } else {
         $sql = db_query('SELECT n.nid FROM {node} n
           LEFT JOIN {content_field_product_master_id} c ON c.nid = n.nid
-          WHERE c.field_product_master_id_value = %d', $node->field_product_master_id[0]['value']);
+          WHERE c.field_product_master_id_value = %d
+          AND n.status = 1', $node->field_product_master_id[0]['value']);
         // Load master
         $master = node_load($node->field_product_master_id[0]['value']);
 
@@ -154,10 +157,12 @@ function acquia_prosper_preprocess_node(&$variables){
         }
 
         $variations = array(
+          0 => array(
             'title' => $master->title,
             'sku'   => $master->model,
             'price' => uc_currency_format($price),
             'nid'   => $master->nid
+          )
         );
         while ($data = db_fetch_object($sql)){
           $var = node_load($data->nid);  
@@ -184,31 +189,9 @@ function acquia_prosper_preprocess_node(&$variables){
     }
   }
 	
-	if ($tabs == ""){
-	  
-	  if (isset($_GET['variation']) && $_GET['variation'] != ''){
-	    $variation_nid = db_fetch_object(db_query('SELECT nid FROM content_type_variation WHERE field_variation_oid_value = %d LIMIT 1', $_GET['variation']));
-	    if (is_object($variation_nid)){
-	      $edit_path = '<a href="/node/' . $variation_nid->nid . '/edit?variation=' . $_GET['variation'] . '">Edit</a>';
-	    } else {
-	      // Create a node first
-	      $edit_path = '<a href="/createvariation/' . $variables['nid'] . '/' . $_GET['variation'] . '">Edit</a>';
-	    }
-	  } else {
-	    $edit_path = l('Edit', 'node/' . $variables['nid'] . '/edit');
-	  }
-		$tabs = '<ul class="tabs primary">
-					<li class="active">' . l('View', 'node/' . $variables['nid']) . '</li>
-					<li>' . $edit_path . '</li>
-					<li>' . l('Stock', 'node/' . $variables['nid'] . '/edit/stock') . '</li>
-				</ul>';
-		$variables['tabs'] = $tabs;
-		
-	}
-	
 	$variables['short_description'] = $node->field_product_short_description[0]['value'];
     
-  if ($variables['teaser'] == FALSE){
+  /*if ($variables['teaser'] == FALSE){
     
     if (isset($_GET['variation']) && $_GET['variation'] != ''){
 
@@ -306,9 +289,9 @@ function acquia_prosper_preprocess_node(&$variables){
       }
       
     }
-  }
+  }*/
   
-  if ($variables['teaser']){
+  /*if ($variables['teaser']){
     $results = db_query('SELECT * FROM uc_product_options WHERE nid = %d', $node->nid);
     $has_options = 0;
     while ($data = db_fetch_object($results)){
@@ -317,6 +300,9 @@ function acquia_prosper_preprocess_node(&$variables){
     }
     $variables['has_options'] = $has_options;
     
+  }*/
+  if ($node->field_product_is_master[0]['value']){
+    $variables['has_options'] = 1;
   }
 }
 
@@ -346,7 +332,7 @@ function acquia_prosper_display_menu(){
           $output .= '<div class="subwrapper' . $class . '">';
           
           
-          if (!empty($item2['below'])){
+          /*if (!empty($item2['below'])){
             $output .= '<h2>' . l($item2['link']['title'], $item2['link']['href'], array('attributes' => array('class' => 'lvl2 nofollow'))) . '</h2>';
             $output .= '<ul>';
             foreach ($item2['below'] as $item3){
@@ -363,9 +349,9 @@ function acquia_prosper_display_menu(){
               $output .= '</li>';
             }
             $output .= '</ul>';
-          } else {
+          } else {*/
             $output .= '<h2>' . l($item2['link']['title'], $item2['link']['href'], array('class' => array('lvl2'))) . '</h2>';
-          }
+          //}
 
           $output .= '</div>';
           if ($counter % 5 == 4){
@@ -770,12 +756,12 @@ function acquia_prosper_show_slider(){
 
 
 function acquia_prosper_variation_list($nid, $vars){
-  $output = '<select name="variations-list" id="variations-list">';
+  $output = '<p style="margin: 0;"><strong>Select your Model/Price from the list:</strong></p>';
+  $output .= '<select name="variations-list" id="variations-list">';
 
   foreach ($vars as $var){
     $selected = ($var['nid'] == $nid) ? 'selected="selected" ' : '';
 
-    
     $output .= '<option value="' . $var['nid'] . '" id="' . $var['sku'] . '"' . $selected . '>' . $var['title'] . ' - ' . $var['price'] . '</option>';
   }
 

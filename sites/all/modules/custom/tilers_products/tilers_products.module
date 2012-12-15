@@ -137,9 +137,9 @@ function tilers_products_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
         	}
         }
         
-        if ($node->field_product_group_title[0]['value'] != ''){
-    	     drupal_set_title($node->field_product_group_title[0]['value']);
-        }
+        /*if ($node->field_product_group_title[0]['value'] != ''){
+          drupal_set_title($node->field_product_group_title[0]['value']);
+        }*/
 
         $stock = uc_stock_level($node->model);
         $node->stock = $stock;
@@ -225,99 +225,67 @@ function tilers_variations_display($nid){
  **/
 function tilers_products_form_alter(&$form, &$form_state, $form_id){
   global $user;
-  if ($form_id == 'variation_node_form'){
-    if (arg(3) != '' && is_numeric(arg(3))){
-      $option = db_fetch_object(db_query('SELECT * FROM {uc_attribute_options} WHERE oid = %d', arg(3)));
-      if (is_object($option)){
-	$form['title']['#default_value'] = $option->name;
-	$form['field_variation_oid'][0]['#default_value']['value'] = arg(3);
-      }
-    }
-  }
   
   $nid = ($form['nid']['#value']) ? $form['nid']['#value'] : '';
   if ($nid != ''){
-      if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
+    if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
   	
-	$node = node_load($nid);
-	if ($node->field_product_price_on_demand[0]['value'] == 0){
-	  // Check stock
-	  $stock = uc_stock_level($node->model);
-	  if ($stock == 0){
-	    $form['submit']['#value'] = 'We will advise delivery';
-	    $form['submit']['#attributes'] = array('class' => 'outstock-submit');
-	  }
-	  
-	  $main_sell_price = $form['node']['#value']->sell_price;
-	  $main_list_price = $form['node']['#value']->list_price;
-	  $tax_sell_price = $main_sell_price * 1.1;
-	  $tax_list_price = $main_list_price * 1.1;
+      $node = node_load($nid);
+        if ($node->field_product_price_on_demand[0]['value'] == 0){
+
+      	  // Check stock
+      	  $stock = uc_stock_level($node->model);
+      	  if ($stock == 0){
+      	    $form['submit']['#value'] = 'We will advise delivery';
+      	    $form['submit']['#attributes'] = array('class' => 'outstock-submit');
+      	  }
+      	  
+      	  $main_sell_price = $form['node']['#value']->sell_price;
+      	  $main_list_price = $form['node']['#value']->list_price;
+      	  $tax_sell_price = $main_sell_price;
+      	  $tax_list_price = $main_list_price;
 		  
-	  $main_difference = $main_list_price - $main_sell_price;
-	  $percentage = '';
-	  if ($main_list_price != 0){
-	    $percentage = number_format(($main_difference * 100 / $main_list_price), 2);
-	  }
+      	  $main_difference = $main_list_price - $main_sell_price;
+      	  $percentage = '';
+      	  if ($main_list_price != 0){
+      	    $percentage = number_format(($main_difference * 100 / $main_list_price), 2);
+      	  }
 	  
-	  // Get default option
-	  $default_option = db_result(db_query('SELECT default_option FROM uc_product_attributes WHERE nid = %d', $nid));
-	  
-	  if (isset($_GET['variation']) && $_GET['variation'] != '' && $_GET['variation'] != $default_option){
-	    $oid = $_GET['variation'];
-	    $variation_nid = db_fetch_object(db_query('SELECT nid FROM content_type_variation WHERE field_variation_oid_value = %d LIMIT 1', $oid));
-	  }
-	  if (is_object($variation_nid)){
-		  
-	      $variation = node_load($variation_nid->nid);
-	      // Find price for this option
-	      if (in_array('distributor', $user->roles)){
-		      $variation_price = tilers_products_get_price_per_option($node, $oid, 5);
-	      } else if (in_array('wholesale', $user->roles)){
-		      $variation_price = tilers_products_get_price_per_option($node, $oid, 4);
-	      } else {	  
-		      $variation_price = tilers_products_get_price_per_option($node, $oid);
-	      }
-	      
-	      $variation_sell_price = $variation_price;
-	      if ($percentage != ''){
-		      $variation_list_price = $variation_sell_price + ($variation_sell_price * $percentage / 100);
-	      } else {
-		      $variation_list_price = $variation_sell_price;
-	      }
-	      
-	      $final_sell_price = round($variation_sell_price * 1.1, 2);
-	      $final_list_price = round($variation_list_price * 1.1, 2);
-	      $final_difference = $final_list_price - $final_sell_price;
-	    
-	  } else {
-	    $final_sell_price = $main_sell_price * 1.1;
-	    $final_list_price = $main_list_price * 1.1;
-	    $final_difference = $final_list_price - $final_sell_price;
-	  }
+      	  // Get default option
+      	  $default_option = db_result(db_query('SELECT default_option FROM uc_product_attributes WHERE nid = %d', $nid));
+      	  
+
+    	    $final_sell_price = $main_sell_price;
+    	    $final_list_price = $main_list_price;
+
+          $rrp = $final_sell_price * 1.08;
+
+    	    $final_difference = $rrp - $final_sell_price;
 	
+          $rrp = $final_sell_price * 1.08;
 	  
-	    $markup_output = '<p class="nomargin"><strong class="14">Your price:</strong></p>';
-	    $markup_output .= '<p class="green-price sell-price nomargin">' . format_price($final_sell_price) . '</p>';
-	    $markup_output .= '<div class="rrp-price"><p class="nomargin"><span style="font-size: 13px;">RRP:</span> ' . format_price($final_list_price) . '</p>';
+          $markup_output = '<p class="nomargin"><strong class="14">Your price:</strong></p>';
+          $markup_output .= '<p class="green-price sell-price nomargin">' . format_price($final_sell_price) . '</p>';
+          $markup_output .= '<div class="rrp-price"><p class="nomargin"><span style="font-size: 13px;">RRP:</span> ' . format_price($rrp) . '</p>';
 	    
-	    //if ($form['node']['#value']->sell_price != $form['node']['#value']->list_price){
-	    if ($final_difference != 0 && $percentage != ''){
-	      $markup_output .= '<p class="green-price nomargin saving">Save ' . format_price($final_difference) . ' (' . $percentage . '%)</p>';
-	    }
-	    $markup_output .= '</div>';
-	    $form['prices'] = array(
-		'#value' => $markup_output,
-		'#weight' => 1
-	    );
+          //if ($form['node']['#value']->sell_price != $form['node']['#value']->list_price){
+          if ($final_difference != 0 && $percentage != ''){
+            $markup_output .= '<p class="green-price nomargin saving">Save ' . format_price($final_difference) . '</p>';
+          }
+          $markup_output .= '</div>';
+          $form['prices'] = array(
+            '#value' => $markup_output,
+            '#weight' => 1
+          );
 	    
-	    $form['attributes']['#weight'] = 0;
-	    $form['submit']['#weight'] = 2;
-	} else {
-	  unset($form['submit']);
-	  $form['price-on-request'] = array(
-	    '#value' => '<div id="price-on-request"><p>Price on request<p></div>'
-	  );	  
-	}
+    	    $form['attributes']['#weight'] = 0;
+    	    $form['submit']['#weight'] = 2;
+      	} else {
+      	  unset($form['submit']);
+      	  $form['price-on-request'] = array(
+      	    '#value' => '<div id="price-on-request"><p>Price on request<p></div>'
+      	  );	  
+      	}
       }
   }
   
@@ -348,7 +316,7 @@ function tilers_products_form_alter(&$form, &$form_state, $form_id){
       }
     }
   }
-
+  
 }
 
 /**

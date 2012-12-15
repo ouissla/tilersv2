@@ -1297,6 +1297,12 @@ span.views-field-title{
     font-size: 10px;
 }
 
+/* PAYMENT FORM */
+#payment_form label {
+    width: 100px;
+    display: inline-block;
+}
+
 
 /* CALCULATOR */
 #grout-calculator-wrapper .calculator-left {

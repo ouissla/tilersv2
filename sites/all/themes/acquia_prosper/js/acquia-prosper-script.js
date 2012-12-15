@@ -160,6 +160,12 @@ $(document).ready(function(){
       }
     });
     $(".grey-box .title").height(maxHeight);
+
+
+    // Variaition list
+    $('#variations-list').change(function(){
+      window.location = '/node/' + $(this).val();
+    });
     
 });
 

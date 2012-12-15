@@ -5,24 +5,24 @@
  */
 function tilers_pages_block($op = 'list', $delta = 0, $edit = array()) {
   if ($op == 'list') {
-    $blocks[0] = array(
+    /*$blocks[0] = array(
       'info' => t('Main vertical menu'),
       'weight' => 0,
       'status' => 1,
-      'region' => 'sidebar_first',
-    );
+    );*/
 
     return $blocks;
   }
   else if ($op == 'view') {
     switch ($delta) {
-      case 0:
+      /*case 0:
         // Your module will need to define this function to render the block.
         $block = array(
           'subject' => "",
           'content' => acquia_prosper_display_menu(),
         );
         break;
+        break;*/
     }
     return $block;
   }
@@ -466,106 +466,3 @@ function tiler_contact_display(){
     $form = drupal_get_form('tiler_contact');
     return theme_status_messages() . $form;
 }
-
-
-
-
-
-/*
- * FORM PAYMENT
- */
-function tiler_payment(){
-    $form = array();
-    
-    $form['name'] = array(
-        '#title' => "Name",
-        '#type' => "textfield",
-        '#size' => 40
-    );
-    
-    $form['contact'] = array(
-        '#title' => "Contact",
-        '#type' => "textfield",
-        '#size' => 40
-    );  
-    
-    $form['email'] = array(
-        '#title' => "Email Address",
-        '#type' => "textfield",
-        '#size' => 40
-    );  
-    
-    $form['ref'] = array(
-        '#title' => "You reference",
-        '#type' => "textfield",
-        '#size' => 40,
-        '#description' => "(e.g. Invoice 121212)"
-    );  
-    
-    $form['ammount'] = array(
-        '#title' => "Ammount",
-        '#type' => "textfield",
-        '#size' => 40,
-        '#prefix' => "<span>$</span>"
-    ); 
-       
-    $form['comment'] = array(
-        '#title' => "Comment",
-        '#type' => "textarea",
-        '#size' => 100
-    ); 
-    
-    $form['submit'] = array(
-        '#type'  => "submit",
-        '#value' => "Submit payment to National Australia Bank"
-    );
-    
-    $form['#theme'] = 'form_payment';
-       
-    return $form;
-}
-
-/*
- * PAYMENT FORM VALIDATION
- */
-function tiler_payment_validate($form, &$form_state){
-    
-}
-
-/*
- * PAYMENT FORM SUBMITION
- */
-function tiler_payment_submit(&$form, $form_state){
-    
-}
-
-/*
- * DISPLAY THE FORM AND ERROR MESSAGES
- */
-function tiler_payment_display(){
-    $form = drupal_get_form('tiler_payment');
-    return theme_status_messages() . $form;
-}
-
-/*
- * THEMING PAYMENT FORM
- */
-function theme_form_payment($form){
-  $output  = drupal_render($form['name']);
-  $output  .= drupal_render($form['contact']);
-  $output  .= drupal_render($form['email']);
-  $output  .= drupal_render($form['ref']);  
-  
-  $output .= '  <div id="edit-ammount-wrapper" class="form-item">
-                   <label for="edit-ammount">' . $form['ammount']['#title'] . ': </label>
-                   <span class="prefix">$</span><input type="text" class="form-text" value="" size="40" id="edit-ammount" name="ammount" maxlength="128">
-                </div>';
-  
-  $output  .= drupal_render($form['comment']);  
-  $output  .= drupal_render($form['submit']);  
-  return $output;
-}
-
-
-/** CUSTOM BREADCRUMB FOR PRODUCTS **/
-

@@ -59,6 +59,14 @@ function devmod_menu() {
     'type' => MENU_CALLBACK,
   );
 
+  $items['setmasterid'] = array(
+    'title' => 'set sub nodequeues',
+    'description' => 'set sub nodequeues',
+    'page callback' => 'setmasterid',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
   return $items;
 }
 
@@ -464,4 +472,62 @@ function allvar(){
     }
 
     return $output;
+}
+
+
+function setmasterid() { //return 'ok';
+    ini_set('max_execution_time', 500);
+    $sql = db_query('SELECT n.nid FROM node AS n
+        LEFT JOIN content_field_product_master_id AS c ON c.nid = n.nid
+        WHERE n.type IN ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") 
+        AND n.nid = 3874 
+        AND c.field_product_master_id_value IS NOT NULL
+        LIMIT 150', 'product', 'waterproofing', 'adhesive', 'floor', 'sealant', 'sound', 'tilecare', 'trim', 'tool');
+    while ($data = db_fetch_object($sql)){
+        $node = node_load($data->nid);
+        $master = node_load($node->field_product_master_id[0]['value']);
+        // if not picture copy master pics
+        if (is_null($node->field_product_images[0])){
+            dsm('no image');
+            $node->field_product_images = $master->field_product_images;
+        }
+
+        // Description
+        if (is_null($node->field_product_short_description[0]['value'])){
+            $node->field_product_short_description = $master->field_product_short_description;
+        }
+        if (is_null($node->field_product_description[0]['value'])){
+            $node->field_product_description = $master->field_product_description;
+        }
+
+        // PDF, manuals, videos
+        if (is_null($node->field_pdf[0])){
+            $node->field_pdf = $master->field_pdf;
+        }
+        if (is_null($node->field_product_manuals[0])){
+            $node->field_product_manuals = $master->field_product_manuals;
+        }
+        if (is_null($node->field_product_videos[0]['value'])){
+            $node->field_product_videos = $master->field_product_videos;
+        }
+
+        // Delivery
+        if (is_null($node->field_product_delivery[0]['value'])){
+            $node->field_product_delivery = $master->field_product_delivery;
+        }
+
+        // Related
+        if (is_null($node->field_related_products[0]['nid'])){
+            $node->field_related_products = $master->field_related_products;
+        }
+
+        // Price on demand
+        $node->field_product_price_in_demand = $master->field_product_price_in_demand;
+        $node->field_product_promoted[0]['value'] = 0;
+
+        node_save($node);
+
+        $nid = $data->nid;
+    }
+    return $nid;
 }

@@ -126,7 +126,29 @@
                                 <div id="content-content" class="content-content">
                                   <?php print $content; ?>
                                     
-                                  <?php echo tiler_payment_display(); ?>
+                                  <form id="payment_form" method="post" action="https://transact.nab.com.au/live/hpp/payment">
+                                    <input type="hidden" name="vendor_name" value="TIL0110">
+                                    <input type="hidden" name="refund_policy" value="<?php print $GLOBALS['base_url']; ?>/warranty-returns-policy"> 
+                                    <!-- <input type="hidden" name="payment_alert" value="andrew@mcevoy.id.au"> --> <!-- remove this line, uncomment next line -->
+                                    <input type="hidden" name="payment_alert" value="sales@tilingtools.com.au">
+                                    <input type="hidden" name="return_link_url" value="<?php print $GLOBALS['base_url']; ?>/payment-page?payment_amount=&amp;bank_reference=&amp;payment_number=&amp;">
+                                    <input type="hidden" name="required_fields" value="receipt_address">
+
+                                    <p><label for="name">Name:</label>          
+                                        <input class="text_input" id="name" name="information_fields" value="" maxlength="50"></p>
+                                    <p><label for="contact">Contact:</label>            
+                                        <input class="text_input" id="contact" name="information_fields" value="" maxlength="50"></p>
+                                    <p><label for="email">Email address:</label>            
+                                        <input class="text_input" id="email" name="receipt_address" value="" maxlength="50"></p>
+                                    <p><label for="reference">Your Reference:</label>           
+                                        <input class="text_input" id="reference" name="payment_reference" value="" maxlength="100">
+                                        <span>&nbsp;(e.g. Invoice 121212)</span></p>
+                                    <p style="position: relative;"><label for="amount">Amount:</label>              <span style="position: absolute; left: 90px;">$</span>
+                                        <input class="text_input" id="amount" name="Item(s)" value="" maxlength="10"></p>
+                                    <p><label for="comment">Comment:</label>
+                                        <textarea name="information_fields" maxlength="245"></textarea></p>
+                                    <p><input style="font-weight: bold; color: green;" type="submit" value="Submit payment to National Australia Bank"></p>
+                                </form>
                                 </div><!-- /content-content -->
                                 <?php endif; ?>
                               </div><!-- /content-inner-inner -->

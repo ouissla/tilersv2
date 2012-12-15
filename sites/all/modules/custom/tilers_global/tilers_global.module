@@ -104,7 +104,7 @@ function tilers_global_form_alter(&$form, $form_state, $form_id) {
                 } else {
                     $raw_price = $node->roleindependent_sell_price;
                 }
-                $price = format_price($raw_price * 1.1);
+                $price = format_price($raw_price);
 
                 $form['items'][$key]['price'] = array(
                     '#value' => $price

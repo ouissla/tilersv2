@@ -239,7 +239,7 @@ function trueerp_import_form_submit(&$form, $form_state){
     $to = $form_state['values']['to'];
   
     //trueerp_import($form_state['values']['type'], $from, $to);
-    trueerp_newimport($form_state['values']['type'], $from, $to);
+    trueerp_import($form_state['values']['type'], $from, $to);
     drupal_set_message('Import completed!');
 }
 
@@ -289,20 +289,20 @@ function trueerp_import($type, $from = 0, $to = 5000){
                 // N.B. We exclude entries with oid == -1. OID only get the -1 value when the variation
                 // was unpublished from the ERP. Most of the variation data have been deleted. We only kept
                 // the node variation and the tilers_erp_product entry with this particular oid value
-                if (is_object($existing_tilers_erp_product) && $existing_tilers_erp_product->oid != -1){
+                if (is_object($existing_tilers_erp_product)){
                   // The product has already been inserted into the database
                   // Check if it needs to be updated
                   if (strtotime($p->msTimeStamp) > $existing_tilers_erp_product->updated){
                     // We check if the current product already exists
                     $existing_product = db_fetch_object(db_query('SELECT nid FROM {uc_products} WHERE model = "%s"', $PRODUCTCODE));
 
-
                     if (is_object($existing_product)){
                       // If the product already exists, then it is an update
                       $node = node_load($existing_product->nid);
-                      if ($node->changed < strtotime($p->msTimeStamp)){
+
+//                      if ($node->changed < strtotime($p->msTimeStamp)){
                         trueerp_update($product, $node);
-                      }
+//                      }
                     } 
                   }
                 } else {
@@ -403,7 +403,13 @@ function trueerp_import($type, $from = 0, $to = 5000){
                           node_save($node);
                           
                           // Fill the tilers_erp_products table
+                          $test_erp_table = db_fetch_object(db_query('SELECT * FROM {tilers_erp_products} WHERE sku = %d', $PRODUCTCODE));
+                          if (is_object($test_erp_table)){
+                            // Update
+                            db_query('UPDATE {tilers_erp_products} SET erpid = %d, update = %d WHERE sku = "%s"', $p->ID, strtotime($p->msTimeStamp), $PRODUCTCODE);
+                          } else {
                             db_query('INSERT INTO {tilers_erp_products} (sku, erpid, oid, updated) VALUES ("%s", "%s", 0, %d)', $PRODUCTCODE, $p->ID, strtotime($p->msTimeStamp));
+                          }
                                          
                           // We set the stock value
                           trueerp_set_stock($product, $node);
@@ -467,51 +473,51 @@ function trueerp_update($product, $node, $is_option = 0){
   $PRODUCTCODE = ($product->fields->ProductCode != '') ? $product->fields->ProductCode : $product->ProductName;
   $tilers_erp_product = db_fetch_object(db_query('SELECT * FROM {tilers_erp_products} WHERE sku = "%s"', $PRODUCTCODE));
 
-    switch ($product->fields->ProductGroup1){
-        case 'TOOLS':
-            $nodetype = 'tool';
-            break;
-        case 'ADHESIVE':
-        case 'ADHESIVES':
-            $nodetype = 'adhesive';
-            break;
-        case 'FLOOR GRATES':
-            $nodetype = 'floor';
-            break;
-        case 'SEALANTS':
-            $nodetype = 'sealant';
-            break;
-        case 'SOUND INSULATION':
-            $nodetype = 'sound';
-            break;
-        case 'TILE CARE':
-            $nodetype = 'tilecare';
-            break;
-        case 'TILE TRIM':
-        case 'TILING TRIMS':
-            $nodetype = 'trim';
-            break;
-        case 'WATERPROOFING':
-            $nodetype = 'waterproofing';
-            break;
+  switch ($product->fields->ProductGroup1){
+      case 'TOOLS':
+          $nodetype = 'tool';
+          break;
+      case 'ADHESIVE':
+      case 'ADHESIVES':
+          $nodetype = 'adhesive';
+          break;
+      case 'FLOOR GRATES':
+          $nodetype = 'floor';
+          break;
+      case 'SEALANTS':
+          $nodetype = 'sealant';
+          break;
+      case 'SOUND INSULATION':
+          $nodetype = 'sound';
+          break;
+      case 'TILE CARE':
+          $nodetype = 'tilecare';
+          break;
+      case 'TILE TRIM':
+      case 'TILING TRIMS':
+          $nodetype = 'trim';
+          break;
+      case 'WATERPROOFING':
+          $nodetype = 'waterproofing';
+          break;
+  }
+    
+  // If the ndoe type is different
+  if ($node->type != $nodetype){
+    // Update the node type
+    $sql = db_query('UPDATE {node} SET type = "%s" WHERE nid = %d', $nodetype, $node->nid);
+    
+    // Remove the node from nodequeues
+    $sql_nodequeue = db_query('SELECT sqid, nid FROM nodequeue_nodes WHERE nid = %d', $node->nid);
+    while ($data = db_fetch_object($sql_nodequeue)){
+      nodequeue_subqueue_remove_node($data->sqid, $data->nid);
     }
     
-    // If the ndoe type is different
-    if ($node->type != $nodetype && $node->type != 'variation'){
-      // Update the node type
-      $sql = db_query('UPDATE {node} SET type = "%s" WHERE nid = %d', $nodetype, $node->nid);
-      
-      // Remove the node from nodequeues
-      $sql_nodequeue = db_query('SELECT sqid, nid FROM nodequeue_nodes WHERE nid = %d', $node->nid);
-      while ($data = db_fetch_object($sql_nodequeue)){
-        nodequeue_subqueue_remove_node($data->sqid, $data->nid);
-      }
-      
-      // Remove categories
-      db_query('DELETE tn.* FROM term_node AS tn LEFT JOIN term_data AS td ON td.tid = tn.tid
-               WHERE tn.nid = %d
-               AND td.vid <> 9', $node->nid);
-    }
+    // Remove categories
+    db_query('DELETE tn.* FROM term_node AS tn LEFT JOIN term_data AS td ON td.tid = tn.tid
+             WHERE tn.nid = %d
+             AND td.vid <> 9', $node->nid);
+  }
     
     
 	// Check the stock value
@@ -522,64 +528,31 @@ function trueerp_update($product, $node, $is_option = 0){
 		uc_stock_adjust($sku, $stock_variation);
 	}
     
-	// We check node->status just to know if this fields exists, which means node reprensent a main product, and not a variation
-	//if ($node->status) {
       
-      // We need to update the sell price
-      $new_main_price = round($product->fields->SellQty1Price, 2);
-			db_query('UPDATE {uc_products} SET sell_price = %d, list_price = %d, cost = %d WHERE model = "%s"', $new_main_price, $new_main_price, $new_main_price, $node->model);
-		
-      trueerp_set_prices_per_role($product, $node->nid, 1);
+  // We need to update the sell price including 10% of GST
+  $new_main_price = round($product->fields->SellQty1PriceInc, 2);
+	db_query('UPDATE {uc_products} SET sell_price = %d, list_price = %d, cost = %d WHERE model = "%s"', $new_main_price, $new_main_price, $new_main_price, $node->model);
 
-      // Update status
-      if ($product->PublishOnWebsite && $node->status == 0){
-        $node->status = 1;
-        node_save($node);
-      } else if (!$product->PublishOnWebsite && $node->status == 1){
-        $node->status = 0;
-        node_save($node);
-      }
+  trueerp_set_prices_per_role($product, $node->nid, 1);
+
+  // Update status
+  if ($product->fields->PublishOnWebsite && $node->status == 0){
+    dsm('up status');
+    $node->status = 1;
+    node_save($node);
+  } else if (!$product->fields->PublishOnWebsite && $node->status == 1){
+    $node->status = 0;
+    node_save($node);
+  }
 		
-		// We don't need to update price per role options as it has to be 0
-		
-		// Check volume discounts...
-		if ($product->fields->SellQty2Price == $product->fields->SellQty1Price){
-			// pas de volume discount, on verifie si un volume discount a ete cree et on le supprime
-		} else {
-			$d = db_fetch_object(db_query('SELECT t.discount_id FROM {tilers_discounts} t
-			LEFT JOIN {tilers_discounts_skus} tds ON tds.discount_id = t.discount_id
-			WHERE tds.sku = "%s"
-			AND t.qualifying_amount = %d
-			AND t.discount_amount = %d', $node->model, $product->fields->SellQty2, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty2Price, 2))));
-			
-			if (!is_object($d)){
-				// on efface tout et on reset
-			}
-			
-		}
-		
-		if ($product->fields->SellQty3Price == $product->fields->SellQty1Price){
-			// pas de volume discount, on verifie si un volume discount a ete cree et on le supprime
-		} else {
-			$d = db_fetch_object(db_query('SELECT t.discount_id FROM {tilers_discounts} t
-			LEFT JOIN {tilers_discounts_skus} tds ON tds.discount_id = t.discount_id
-			WHERE tds.sku = "%s"
-			AND t.qualifying_amount = %d
-			AND t.discount_amount = %d', $node->model, $product->fields->SellQty3, (round($product->fields->SellQty1Price, 2) - round($product->fields->SellQty3Price, 2))));
-			
-			if (!is_object($d)){
-				// on efface tout et on reset
-			}
-			
-		}
-		
-	//}
-	
-	
+	// Check volume discounts...
+	if ($product->fields->SellQty2PriceInc == $product->fields->SellQty1PriceInc && $product->fields->SellQty3PriceInc == $product->fields->SellQty1PriceInc){
+		// pas de volume discount, on verifie si un volume discount a ete cree et on le supprime
+	} else {
+    trueerp_set_volume_discounts($product, 1);		
+	}
+
 }
-
-
-
 
 function trueerp_user($op, &$edit, &$account, $category = NULL) {
   if ($op == 'insert') {
@@ -856,9 +829,14 @@ function trueerp_brand_matrix($brand){
  * SET STOCK VALUE
  **/
 function trueerp_set_stock($product, $node){
-  $PRODUCTCODE = ($product->fields->PRODUCTCODE != '') ? $product->fields->PRODUCTCODE : $product->ProductName;
+  $PRODUCTCODE = ($product->fields->ProductCode != '') ? $product->fields->ProductCode : $product->ProductName;
   if ($PRODUCTCODE != ''){
+    $test_stock = db_fetch_object(db_query('SELECT sku FROM {uc_product_stock} WHERE sku = "%s"', $PRODUCTCODE));
+    if (is_object($test_stock)){
+      db_query('UPDATE {uc_product_stock} SET nid = %d, stock = %d WHERE sku = "%s"', $node->nid, $product->fields->TotalQtyInStock, $PRODUCTCODE);
+    } else {
     db_query('INSERT INTO {uc_product_stock} (sku, nid, active, stock, threshold) VALUES ("%s", %d, 1, %d, 5)', $PRODUCTCODE, $node->nid, $product->fields->TotalQtyInStock);
+    }
   }
 }
 
@@ -866,7 +844,10 @@ function trueerp_set_stock($product, $node){
  * Import volume discounts
  **/
 function trueerp_set_volume_discounts($product, $is_update = 0){
-    $PRODUCTCODE = ($product->fields->PRODUCTCODE != '') ? $product->fields->PRODUCTCODE : $product->ProductName;
+  dsm('toto');
+
+    $PRODUCTCODE = ($product->fields->ProductCode != '') ? $product->fields->ProductCode : $product->ProductName;
+  
     if ($PRODUCTCODE != ''){
       if ($is_update){
           $result = db_query('SELECT discount_sku_id, discount_id FROM {tilers_discounts_skus} WHERE sku = "%s"', $PRODUCTCODE);
@@ -901,24 +882,40 @@ function trueerp_set_volume_discounts($product, $is_update = 0){
  **/
 function trueerp_set_prices_per_role($product, $nid, $is_update = 0){
     if ($is_update){
-        db_query('UPDATE {uc_price_per_role_prices} SET price = "%s"
-                 WHERE nid = %d
-                 AND vid = %d
-                 AND rid = 5', number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2), $nid, $nid);
-        
-        db_query('UPDATE {uc_price_per_role_prices} SET price = "%s"
-                 WHERE nid = %d
-                 AND vid = %d
-                 AND rid = 4', number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2), $nid, $nid);
+
+        $price_role_5 = number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2);
+        $exist5 = db_fetch_object(db_query('SELECT rpid FROM {uc_price_per_role_prices} 
+          WHERE nid = %d 
+          AND vid = %d 
+          AND rid = 5', $nid, $nid));
+        if (is_object($exist5)){
+          db_query('UPDATE {uc_price_per_role_prices} SET price = %f WHERE rpid = %d', $price_role_5, $exist5->rpid);
+        } else {
+          db_query('INSERT INTO {uc_price_per_role_prices} (rpid, vid, nid, rid, price) VALUES (NULL, %d, %d, 5, %f)', $nid, $nid, $price_role_5);
+        }
+
+        $price_role_4 = number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2);
+        $exist4 = db_fetch_object(db_query('SELECT rpid FROM {uc_price_per_role_prices} 
+          WHERE nid = %d 
+          AND vid = %d 
+          AND rid = 4', $nid, $nid));
+        if (is_object($exist4)){
+          db_query('UPDATE {uc_price_per_role_prices} SET price = %f WHERE rpid = %d', $price_role_4, $exist4->rpid);
+        } else {
+          db_query('INSERT INTO {uc_price_per_role_prices} (rpid, vid, nid, rid, price) VALUES (NULL, %d, %d, 4, %f)', $nid, $nid, $price_role_4);
+        }
+
     } else {
         // Differents prices for differents user roles
         // Wholesale rid = 4
         // Distributor rid = 5
+        $price_retail = number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2);
         db_query('INSERT INTO uc_price_per_role_prices (rpid, vid, nid, rid, price) 
-        VALUES (NULL, %d, %d, 5, "%s")', $nid, $nid, number_format(round($product->fields->ExtraSellPrice[3]->fields->Price1, 2), 2));
+        VALUES (NULL, %d, %d, 5, %f)', $nid, $nid, $price_retail);
     
+        $price_wholesale = number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2);
         db_query('INSERT INTO uc_price_per_role_prices (rpid, vid, nid, rid, price) 
-        VALUES (NULL, %d, %d, 4, "%s")', $nid, $nid, number_format(round($product->fields->ExtraSellPrice[2]->fields->Price1, 2), 2));
+        VALUES (NULL, %d, %d, 4, %f)', $nid, $nid, $price_wholesale);
     }
 }
 

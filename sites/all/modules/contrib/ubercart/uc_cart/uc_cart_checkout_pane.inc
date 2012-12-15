@@ -694,7 +694,7 @@ function theme_uc_checkout_pane_cart_review($items) {
 
     $rows[] = array(
       array('data' => $item->qty . '&times;', 'class' => 'qty'),
-      array('data' => 'ddd' . check_plain($item->title) . uc_product_get_description($item), 'class' => 'products'),
+      array('data' => check_plain($item->title) . uc_product_get_description($item), 'class' => 'products'),
       array('data' => uc_price($price_info, $context), 'class' => 'price'),
     );
   }
