@@ -477,57 +477,121 @@ function allvar(){
 
 function setmasterid() { //return 'ok';
     ini_set('max_execution_time', 500);
-    $sql = db_query('SELECT n.nid FROM node AS n
-        LEFT JOIN content_field_product_master_id AS c ON c.nid = n.nid
-        WHERE n.type IN ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") 
-        AND n.nid = 3874 
-        AND c.field_product_master_id_value IS NOT NULL
-        LIMIT 150', 'product', 'waterproofing', 'adhesive', 'floor', 'sealant', 'sound', 'tilecare', 'trim', 'tool');
+    /*$sql = db_query('SELECT display_options FROM views_display WHERE vid = 145 AND display_plugin = "page"');
     while ($data = db_fetch_object($sql)){
-        $node = node_load($data->nid);
-        $master = node_load($node->field_product_master_id[0]['value']);
-        // if not picture copy master pics
-        if (is_null($node->field_product_images[0])){
-            dsm('no image');
-            $node->field_product_images = $master->field_product_images;
-        }
-
-        // Description
-        if (is_null($node->field_product_short_description[0]['value'])){
-            $node->field_product_short_description = $master->field_product_short_description;
-        }
-        if (is_null($node->field_product_description[0]['value'])){
-            $node->field_product_description = $master->field_product_description;
-        }
-
-        // PDF, manuals, videos
-        if (is_null($node->field_pdf[0])){
-            $node->field_pdf = $master->field_pdf;
-        }
-        if (is_null($node->field_product_manuals[0])){
-            $node->field_product_manuals = $master->field_product_manuals;
-        }
-        if (is_null($node->field_product_videos[0]['value'])){
-            $node->field_product_videos = $master->field_product_videos;
-        }
-
-        // Delivery
-        if (is_null($node->field_product_delivery[0]['value'])){
-            $node->field_product_delivery = $master->field_product_delivery;
-        }
-
-        // Related
-        if (is_null($node->field_related_products[0]['nid'])){
-            $node->field_related_products = $master->field_related_products;
-        }
-
-        // Price on demand
-        $node->field_product_price_in_demand = $master->field_product_price_in_demand;
-        $node->field_product_promoted[0]['value'] = 0;
-
-        node_save($node);
-
-        $nid = $data->nid;
+        $a = unserialize($data->display_options);
+        dsm($a);
     }
-    return $nid;
+    return 'ok';*/
+
+
+
+
+
+    $sql = db_query('SELECT vd.vid, vd.display_options FROM views_display AS vd
+        LEFT JOIN views_view AS vv ON vv.vid = vd.vid
+        WHERE vv.tag = "nodequeue"
+        AND display_plugin = "page"');
+
+    while ($data = db_fetch_object($sql)){
+        $a = unserialize($data->display_options);
+        $a['pager'] = array(
+            'type' => 'full',
+            'options' => array(
+                'items_per_page' => 24,
+                'offset' => 0,
+                'id' => 0,
+                'total_pages' => '',
+                'expose' => array(
+                    'items_per_page' => 1,
+                    'items_per_page_label' => "Items per page",
+                    'items_per_page_options' => "24, 36, 48, 60",
+                    'items_per_page_options_all' => 1,
+                    'items_per_page_options_all_label' => "- All -",
+                    'offset' => 0,
+                    'offet_label' => "Offset"
+                )
+            )
+        );
+
+        if (isset($a['sorts'])){
+            $a['sorts']['sell_price'] = array(
+                'id' => 'sell_price',
+                'table' => 'uc_products',
+                'field' => 'sell_price',
+                'relationship' => 'none',
+                'group_type' => 'group',
+                'ui_name' => '',
+                'order' => 'ASC',
+                'exposed' => TRUE,
+                'expose' => array(
+                    'order' => 'ASC',
+                    'label' => "Product: Sell price"
+                )
+            );
+        } else {
+            $a['sorts'] = array(
+                'sell_price' => array(
+                    'id' => 'sell_price',
+                    'table' => 'uc_products',
+                    'field' => 'sell_price',
+                    'relationship' => 'none',
+                    'group_type' => 'group',
+                    'ui_name' => '',
+                    'order' => 'ASC',
+                    'exposed' => TRUE,
+                    'expose' => array(
+                        'order' => 'ASC',
+                        'label' => "Product: Sell price"
+                    )
+                )
+            );
+        }
+
+        $a['filters'] = array(
+            'status_extra' => array(
+                'id' => 'status_extra',
+                'table' => 'node',
+                'field' => 'status_extra',
+                'operator' => '=',
+                'value' => '',
+                'group' => 0,
+                'exposed' => FALSE,
+                'expose' => array(
+                    'operator' => FALSE,
+                    'label' => ''
+                ),
+                'relationship' => 'none'
+            ),
+            'field_product_master_id_value' => array(
+                'operator' => 'empty',
+                'value' => '',
+                'group' => 0,
+                'exposed' => FALSE,
+                'expose' => array(
+                    'operator' => FALSE,
+                    'label' => '',
+                    'optional' => FALSE
+                ),
+                'case' => 1,
+                'id' => 'field_product_master_id_value',
+                'table' => 'node_data_field_product_master_id',
+                'field' => 'field_product_master_id_value',
+                'override' => array(
+                    'button' => "Use default"
+                ),
+                'relationship' => 'none'
+            )
+        );
+
+        unset($a['items_per_page']);
+        unset($a['offset']);
+        unset($a['use_pager']);
+
+        $b = serialize($a);
+        db_query('UPDATE views_display SET display_options = "%s" WHERE vid = %d', $b, $data->vid);
+        dsm($a);
+    }
+    return 'ok';
+        
 }

@@ -155,6 +155,12 @@ function tilers_global_form_alter(&$form, $form_state, $form_id) {
             }
         }
     }
+    if ($form_id == "views_exposed_form"){
+      if (strpos($form['#id'], 'views-exposed-form-nodequeue-') !== FALSE){
+        $form['sort_order']['#options']['ASC'] = "Price: Lower first";
+        $form['sort_order']['#options']['DESC'] = "Price: Higher first";
+      }
+    }
 }
 
 /**

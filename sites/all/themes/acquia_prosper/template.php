@@ -468,7 +468,9 @@ function acquia_prosper_uc_cart_block_summary($item_count, $item_text, $total, $
                   <ul id="subcontent">
                     <li class="cart-preview-message">
                       <p>You cart preview</p>
-                    </li>';
+                    </li>
+                    <li id="cart-summary-content">
+                      <ul>';
 
                     foreach ($cart_content as $cart_item){
                       $product = node_load($cart_item->nid);
@@ -482,7 +484,7 @@ function acquia_prosper_uc_cart_block_summary($item_count, $item_text, $total, $
                                     <p class="title">' . $cart_item->title . '</p><p class="qty"> x' . $cart_item->qty . '</p></div>';
                       $output .= '</li>';
                     }
-
+                    $output .= '</ul></li>';
                     $output .= '<li id="cart-block-total">
                                   <div class="cart-block-total-desc">
                                     <p>Total <span>Inc. GST when applicable</span></p>

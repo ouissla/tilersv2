@@ -112,6 +112,9 @@ div#homepage_bottom_blocks div#access h3 {
 /*
  * Product list
  */
+ div.view-nodequeue .views-widget-sort-by {
+    display: none;
+ }
  div.product_in_list {
      width: 175px;
 }
@@ -1179,6 +1182,15 @@ span.views-field-title{
 #cart-block-wrapper ul {
     margin: 0;
 }
+
+#cart-block-wrapper #cart-summary-content {
+    list-style: none;
+}
+
+    #cart-block-wrapper #cart-summary-content ul {
+        max-height: 264px;
+        overflow: auto;
+    }
 
 #cart-block-wrapper #cart-block-title,
 #cart-block-wrapper #cart-block-title a.title {
