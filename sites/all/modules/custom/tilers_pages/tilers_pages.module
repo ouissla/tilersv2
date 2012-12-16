@@ -77,6 +77,26 @@ function tilers_pages_menu(){
        'access callback' => TRUE,
        'type'            => MENU_CALLBACK,
     );
+  $items['admin/user/prospects'] = array(
+    'title'           => 'Prospects', 
+    'page callback'   => 'tilers_pages_prospect_list',
+    'access callback' => 'user_access', 
+    'access arguments' => array('administer users'),
+  );
+  $items['admin/user/prospect/%'] = array(
+    'title'           => 'Prospects', 
+    'page callback'   => 'tilers_pages_prospect_view',
+    'page arguments'  => array(3),
+    'access callback' => 'user_access', 
+    'access arguments' => array('administer users'),
+  );
+  $items['admin/user/prospect/%/delete'] = array(
+    'title'           => 'Prospects', 
+    'page callback'   => 'tilers_pages_prospect_delete',
+    'page arguments'  => array(3),
+    'access callback' => 'user_access', 
+    'access arguments' => array('administer users'),
+  );
 
     return $items;
 }
@@ -453,10 +473,31 @@ function tiler_contact_validate($form, &$form_state){
  * CONTACT FORM SUBMITION
  */
 function tiler_contact_submit(&$form, $form_state){
+    $site_mail = variable_get('site_mail', NULL);
+
+    $iam = '';
+    foreach ($form_state['values']['iam'] as $key => $value){
+        if ($value != 0){
+            $iam .= $value . ', ';
+        }
+    }
+
+    $type = '';
+    foreach ($form_state['values']['enquiry_type'] as $key => $value){
+        if ($value != 0){
+            $type .= $value . ', ';
+        }
+    }
+
+    $club = ($form_state['values']['club'] == 1) ? 1 : 0;
+
+    db_query('INSERT INTO {tilers_prospects} (id, given_name, surname, address, suburb, state, postcode, phone, email, job, product_enquiry, enquiry_type, notes, club, created) VALUES (null, "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", %d, %d)', $form_state['values']['firstname'], $form_state['values']['lastname'], $form_state['values']['street'], $form_state['values']['suburb'], $form_state['values']['state'], $form_state['values']['postcode'], $form_state['values']['phone'], $form_state['values']['email'], $iam, $form_state['values']['product_enquiry'], $type, $form_state['values']['enquiry_notes'], $club, time());
+
     $params = array(
         'message_body' => $form_state['enquiry_notes']
     );
-    drupal_mail('tilers_pages', 'contact', 'christophe.cresson@gmail.com', 'en', $params, $form_state['values']['email']);
+    drupal_mail('tilers_pages', 'contact', $site_mail, 'en', $params, $form_state['values']['email']);
+    drupal_set_message('Thank you for you enquiry.');
 }
 
 /*
@@ -465,4 +506,64 @@ function tiler_contact_submit(&$form, $form_state){
 function tiler_contact_display(){
     $form = drupal_get_form('tiler_contact');
     return theme_status_messages() . $form;
+}
+
+
+/**
+ * Show the list of prospects
+ */
+function tilers_pages_prospect_list(){
+    $sql = db_query('SELECT * FROM tilers_prospects');
+
+    $headers = array(
+        'id', 'name', 'email', 'suburb', 'state', 'created', 'actions'
+    );
+    $rows = array();
+
+    while ($data = db_fetch_object($sql)){
+        $rows[] = array(
+            $data->id,
+            $data->given_name . ' ' . $data->surname,
+            $data->email,
+            $data->suburb,
+            $data->state,
+            date('d-m-Y', $data->created),
+            l('View', 'admin/user/prospect/' . $data->id) . ' - ' . l('Delete', 'admin/user/prospect/' . $data->id . '/delete')
+        );
+    }
+    return theme_table($headers, $rows);
+
+}
+
+/**
+ * View a prospect
+ */
+function tilers_pages_prospect_view($id){
+    $prospect = db_fetch_object(db_query('SELECT * FROM {tilers_prospects} WHERE id = %d', $id));
+
+    $output = '<p><strong>Name</strong><br />' . $prospect->given_name . ' ' . $prospect->surname . '</p>';
+    $output .= '<p><strong>Address</strong><br />' . $prospect->address . '</p>';
+    $output .= '<p><strong>Suburb</strong><br />' . $prospect->suburb . '</p>';
+    $output .= '<p><strong>State</strong><br />' . $prospect->state . '</p>';
+    $output .= '<p><strong>Postcode</strong><br />' . $prospect->postcode . '</p>';
+    $output .= '<p><strong>Phone</strong><br />' . $prospect->phone . '</p>';
+    $output .= '<p><strong>Email</strong><br />' . $prospect->email . '</p>';
+    $output .= '<p><strong>Job</strong><br />' . $prospect->job . '</p>';
+    $output .= '<p><strong>Product Enquiry</strong><br />' . $prospect->product_enquiry . '</p>';
+    $output .= '<p><strong>Enquiry Type</strong><br />' . $prospect->enquiry_type . '</p>';
+    $output .= '<p><strong>Notes</strong><br />' . $prospect->notes . '</p>';
+    $output .= '<p><strong>Club</strong><br />' . $prospect->club . '</p>';
+    $output .= '<p><strong>Created</strong><br />' . date('d-m-Y', $prospect->created) . '</p>';
+
+    $output .= '<br /><p><a href="/admin/user/prospect/' . $id . '/send" style="display: block; padding: 3px 8px; background: #ccc; border-radius: 5px;">Send to the ERP</a></p>';
+    return $output;
+}
+
+/**
+ * Delete a prospect
+ */
+function tilers_pages_prospect_delete($id){
+    $prospect = db_query('DELETE FROM {tilers_prospects} WHERE id = %d', $id);
+    drupal_set_message('The prospect has been deleted');
+    drupal_goto('/admin/user/prospects');
 }

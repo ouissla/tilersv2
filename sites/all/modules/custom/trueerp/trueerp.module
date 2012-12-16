@@ -27,12 +27,12 @@ function trueerp_menu() {
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
-
-  $items['setvarsku'] = array(
-    'title' => 'run TrueERP import',
-    'page callback' => 'setvarsku',
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
+  $items['admin/user/prospect/%/send'] = array(
+    'title'           => 'Prospects', 
+    'page callback'   => 'trueerp_prospect_send',
+    'page arguments'  => array(3),
+    'access callback' => 'user_access', 
+    'access arguments' => array('administer users'),
   );
 
   $items['getsku/%/%'] = array(
@@ -174,12 +174,12 @@ function trueerp_set($ressource, $data){
     $trueerp_database = variable_get('trueerp_database', "");
 
     // Set some parameters for sending request.
-    $request_url = url('https://' . $trueerp_username . ':' . $trueerp_password . '@' . $trueerp_host . ':' . $trueerp_port . '/' . $ressource, array(absolute => TRUE));
+    //$request_url = url('https://' . $trueerp_username . ':' . $trueerp_password . '@' . $trueerp_host . ':' . $trueerp_port . '/' . $ressource, array(absolute => TRUE));
+
+    $request_url = 'https://' . $trueerp_username . ':' . $trueerp_password . '@' . $trueerp_host . ':' . $trueerp_port . '/' . $ressource;
     
-    //$headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    $headers['Content-Type'] = 'application/json';
-    //$headers['Content-Length'] = '500';
-	
+    $headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    //$headers['Content-Type'] = 'application/json';
     $headers['database'] = $trueerp_database;
 	
     $request_method  = 'POST';
@@ -555,10 +555,10 @@ function trueerp_update($product, $node, $is_option = 0){
 }
 
 function trueerp_user($op, &$edit, &$account, $category = NULL) {
-  if ($op == 'insert') {
+  /*if ($op == 'insert') {
       $json_user = trueerp_customer_json($account);
       $result = trueerp_set('erpapi/TCustomer', $json_user);
-  }
+  }*/ 
 }
 
 function trueerp_customer_json($user){
@@ -844,7 +844,6 @@ function trueerp_set_stock($product, $node){
  * Import volume discounts
  **/
 function trueerp_set_volume_discounts($product, $is_update = 0){
-  dsm('toto');
 
     $PRODUCTCODE = ($product->fields->ProductCode != '') ? $product->fields->ProductCode : $product->ProductName;
   
@@ -1185,4 +1184,41 @@ dsm($product);
         break;
     }
     dsm($count);
+}
+
+/**
+ * Send a prospect to the ERP
+ */
+function trueerp_prospect_send($id){
+    $prospect = db_fetch_object(db_query('SELECT * FROM {tilers_prospects} WHERE id = %d', $id));
+
+    require 'true.class.php';
+    $data = array (
+        'type' => 'TCustomer',
+        'fields' =>
+        xtdClass::__set_state(array(
+         'ClientName' => $prospect->given_name . ' ' . $prospect->lastname,
+         'Title' => '',
+         'FirstName' => $prospect->given_name,
+         'LastName' => $prospect->lastname,
+         'Street' => $prospect->address,
+         'Street2' => '',
+         'Street3' => '',
+         'Suburb' => $prospect->suburb,
+         'Postcode' => $prospect->postcode,
+         'State' => $prospect->state,
+         'Country' => 'Australia',
+         'Phone' => $prospect->phone,
+         'Faxnumber' => '',
+         'Email' => $prospect->email,
+         'Mobile' => '',
+         'ClientTypeName' => 'Default',
+         'SourceName' => 'Radio',
+        )),
+    );
+    $json_user = json_encode($data);
+    $result = trueerp_set('erpapi/TCustomer', $json_user);
+
+    dsm($result);
+    return 'ok';
 }
