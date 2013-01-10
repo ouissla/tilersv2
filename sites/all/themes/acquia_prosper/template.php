@@ -12,7 +12,6 @@ function acquia_prosper_theme() {
 }
 
 function acquia_prosper_preprocess_page(&$variables){
-
   drupal_add_js("sites/all/themes/acquia_prosper/js/jquery.resizeOnApproach.1.0.js", "module", "header");
   drupal_add_js("sites/all/themes/acquia_prosper/js/jquery.hoverIntent.minified.js", "module", "header");
  
@@ -37,39 +36,16 @@ function acquia_prosper_preprocess_page(&$variables){
         $top_sellers .= '</ul>';
         $variables['top_sellers'] = $top_sellers;
 
-        /*$arr_pics = array();
-        while ($special = db_fetch_object($specials_offers)){
-            //$data = unserialize($special->field_special_image_data);
-            $arr_pics[] = array(
-                'filepath' => $special->filepath,
-                //'title'    => $data['title'],
-                //'alt'      => $data['alt'],
-                'url'      => $special->field_special_url_value
-            );
-        }
-        $variables['carrousel_pictures'] = $arr_pics;*/
     }
     
-	//drupal_add_css("sites/all/themes/acquia_prosper/js/jquery-mega-drop-down-menu/css/dcmegamenu.css", "module", "header");
-	
-	
     $variables['scripts'] = drupal_get_js();
     if (arg(0) == 'node' && is_numeric(arg(1))){
       $tabs = $variables['tabs'];
 	
     	$tab_content = '';
-    	if (isset($_GET['variation']) && $_GET['variation'] != ''){
-    	  $main_product = db_fetch_object(db_query('SELECT nid FROM {uc_product_options} WHERE oid = %d LIMIT 1', $_GET['variation']));
-    	  if (is_object($main_product)){
-    	    $tab_content .= '<li>' . l('View main product', 'node/' . $main_product->nid) . '</li>
-    			   <li>' . l('Edit main product', '/node/' . $main_product->nid . '/edit') . '</li>
-    			  <li>' . l('Stock', 'node/' . $main_product->nid . '/edit/stock') . '</li>';
-    	  }
-    	} else {
     	  $tab_content .= '<li>' . l('Stock', 'node/' . arg(1) . '/edit/stock') . '</li>
     			  <li>' . l('Variations', 'variations/' . arg(1)) . '</li>
     			</ul>';
-    	}
 	
     	$new_tabs = str_replace('</ul>', $tab_content, $tabs);
     	$variables['tabs'] = $new_tabs;
@@ -191,118 +167,16 @@ function acquia_prosper_preprocess_node(&$variables){
 	
 	$variables['short_description'] = $node->field_product_short_description[0]['value'];
     
-  /*if ($variables['teaser'] == FALSE){
-    
-    if (isset($_GET['variation']) && $_GET['variation'] != ''){
-
-      $variables['is_variation'] = TRUE;
-      $oid = $_GET['variation'];
-
-      
-      $variation_nid = db_fetch_object(db_query('SELECT nid FROM content_type_variation WHERE field_variation_oid_value = %d LIMIT 1', $oid));
-      if (is_object($variation_nid)){ 
-      	$variation = node_load($variation_nid->nid);
-      	
-      	$variables['variation'] = $variation;
-      	
-      	$variables['title'] = $variation->title;
-      	drupal_set_title($variation->title);
-      	$variables['short_description'] = $variation->field_product_short_description[0]['value'];
-      	
-      	// Find price for this option
-      	if (in_array('distributor', $user->roles)){
-      	  $variation_price = tilers_products_get_price_per_option($node, $oid, 5);
-      	} else if (in_array('wholesale', $user->roles)){
-      	  $variation_price = tilers_products_get_price_per_option($node, $oid, 4);
-      	} else {	  
-      	  $variation_price = tilers_products_get_price_per_option($node, $oid);
-      	}
-	
-      	if (isset($variation_price)){ 
-      	$variables['fusion_uc_list_price'] = '<div class="product-info product display">
-      						<span class="uc-price-product uc-price-display uc-price">$' . $variation_price . '</span>
-      					      </div>';
-      	$variables['fusion_uc_display_price'] = '<div class="product-info product display">
-      						  <span class="uc-price-product uc-price-display uc-price">$' . $variation_price . '</span>
-      						</div>';
-      	$variables['fusion_uc_sell_price'] = '<div class="product-info product sell">
-      						<span class="uc-price-product uc-price-sell uc-price"><span class="price-prefixes">Price: </span>$' . $variation_price . '</span>
-      					      </div>';
-      	}
-	
-      	// Preset the model dropdown list with the current value
-      	drupal_add_js("$(document).ready(function(){
-      			$('#edit-attributes-1-1').val('" . $oid . "').attr('selected', true);
-      		      });", 'inline');
-      					      
-      	// Find images
-      	if (isset($variation->field_product_images[0]) && !empty($variation->field_product_images[0])){
-      	    $variables['option_images'] = acquia_prosper_image_gallery($variation);
-      	}
-	
-      	// Find description
-      	if ($variation->body != ''){
-      	  $variables['option_body'] = $variation->body;
-      	}
-      	
-      	// Find technical
-      	if (isset($variation->field_pdf[0]) && !empty($variation->field_pdf[0])){
-      	  $variables['option_tech'] = $variation->field_pdf[0]['filepath'];
-      	}
-	
-      	// Find manuals
-      	$manuals = '';
-      	foreach ($variation->field_product_manuals as $m){
-      	  if (!is_null($m)){
-      	    $manuals .= '<p>' . l($m["filename"], $m["filepath"]) . '</p>';
-      	  }
-      	}
-      	if ($manuals != ''){
-      	  $variables['option_manuals'] = $manuals;
-      	}
-	
-      	// Find videos
-      	$vids = '';
-      	foreach ($variation->field_product_videos as $video){
-      	  if (!is_null($video)){
-      	    $vids .= '<iframe width="460" height="254" src="http://www.youtube.com/embed/' . $video['value'] . '?rel=0" frameborder="0" allowfullscreen></iframe><br />';
-      	  }
-      	}
-      	if ($vids != ''){
-      	  $variables['option_videos'] = $vids;
-      	}
-	
-      	// Find price
-      	// Check user role
-      	$price = '';
-      	if (in_array('wholesale', $user->roles)){
-      	  $price = db_fetch_object(db_query('SELECT price FROM {uc_price_per_role_option_prices} WHERE nid = %d AND oid = %d AND rid = 4', $variables['nid'], $variation->field_variation_oid[0]['value']));
-      	} elseif (in_array('distributor', $user->roles)){
-      	  $price = db_fetch_object(db_query('SELECT price FROM {uc_price_per_role_option_prices} WHERE nid = %d AND oid = %d AND rid = 5', $variables['nid'], $variation->field_variation_oid[0]['value']));
-      	} else {
-      	  $price = db_fetch_object(db_query('SELECT price FROM {uc_attribute_options} WHERE oid = %d', $variation->field_variation_oid[0]['value']));
-      	}
-      	if ($price != ''){
-      	  $option_price = $variables['list_price'] - $price->price;
-      	}
-      
-      }
-      
-    }
-  }*/
   
-  /*if ($variables['teaser']){
-    $results = db_query('SELECT * FROM uc_product_options WHERE nid = %d', $node->nid);
-    $has_options = 0;
-    while ($data = db_fetch_object($results)){
-      $has_options = 1;
-      break;
-    }
-    $variables['has_options'] = $has_options;
-    
-  }*/
   if ($node->field_product_is_master[0]['value']){
     $variables['has_options'] = 1;
+  }
+
+  if (!isset($variables['tabs']) || $variables['tabs'] == ''){
+    $variables['tabs'] == '<ul class="tabs primary">
+    <li>' . l('Edit', 'node/' . $node->nid . '/edit') . '</li>
+    <li>' . l('Stock', 'node/' . $node->nid . '/edit/stock') . '</li>
+    </ul>';
   }
 }
 
