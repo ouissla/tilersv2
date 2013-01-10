@@ -100,6 +100,11 @@
 <?php } 
 } else {?>
 	<?php print theme('grid_block', $tabs, 'content-tabs'); ?>
+	<?php if ($tabs == '' && in_array('admin', $user->roles)){ ?>
+				<ul class="tabs primary">
+					<li><a href="/node/<?php echo $node->nid; ?>/edit" style="float: right;">Edit</a></li>
+				</ul>
+			<?php } ?>
     <div id="node-<?php print $node->nid; ?>" class="fullview node clear-block <?php print $node_classes; ?>">
       <div class="inner">
         <?php if ($page == 0): ?>
