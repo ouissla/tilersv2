@@ -88,6 +88,7 @@ function acquia_prosper_preprocess_node(&$variables){
             'title' => $node->title,
             'sku'   => $node->model,
             'price' => uc_currency_format($price),
+            'raw_price' => $price,
             'nid'   => $node->nid
           )
         );
@@ -109,10 +110,18 @@ function acquia_prosper_preprocess_node(&$variables){
               'title' => $var->title,
               'sku'   => $var->model,
               'price' => uc_currency_format($price),
+              'raw_price' => $price,
               'nid'   => $var->nid
           );
         } 
         $variables['variations'] = $variations;
+
+        usort($variables['variations'], function($a, $b) {
+            if ($a['raw_price'] == $b['raw_price']) {
+                return 0;
+            }
+            return ($a['raw_price'] < $b['raw_price']) ? -1 : 1;
+        });
 
       } else {
         $sql = db_query('SELECT n.nid FROM {node} n
@@ -134,10 +143,11 @@ function acquia_prosper_preprocess_node(&$variables){
 
         $variations = array(
           0 => array(
-            'title' => $master->title,
-            'sku'   => $master->model,
-            'price' => uc_currency_format($price),
-            'nid'   => $master->nid
+            'title'     => $master->title,
+            'sku'       => $master->model,
+            'price'     => uc_currency_format($price),
+            'raw_price' => $price,
+            'nid'       => $master->nid
           )
         );
         while ($data = db_fetch_object($sql)){
@@ -154,11 +164,19 @@ function acquia_prosper_preprocess_node(&$variables){
           }
 
           $variations[] = array(
-            'title' => $var->title,
-            'sku'   => $var->model,
-            'price' => uc_currency_format($price),
-            'nid'   => $var->nid
+            'title'     => $var->title,
+            'sku'       => $var->model,
+            'price'     => uc_currency_format($price),
+            'raw_price' => $price,
+            'nid'       => $var->nid
           );
+
+          usort($variables['variations'], function($a, $b) {
+              if ($a['raw_price'] == $b['raw_price']) {
+                  return 0;
+              }
+              return ($a['raw_price'] < $b['raw_price']) ? -1 : 1;
+          });
         }
         $variables['variations'] = $variations;
       }
@@ -643,6 +661,62 @@ function acquia_prosper_variation_list($nid, $vars){
 
   $output .= '</ul>
   </select>';
+
+  return $output;
+}
+
+function acquia_prosper_links($links, $attributes = array('class' => 'links')) {
+    global $language;
+    global $user;
+  $output = '';
+
+  if (count($links) > 0) {
+    $output = '<ul' . drupal_attributes($attributes) . '>';
+
+    $num_links = count($links);
+    $i = 1;
+
+    foreach ($links as $key => $link) {
+
+      if ($key != "menu-411" || ($key == "menu-411" && $user->uid >= 1)){
+        $class = $key;
+        // Add first, last and active classes to the list of links to help out themers.
+        if ($i == 1) {
+          $class .= ' first';
+        }
+        if ($i == $num_links) {
+          $class .= ' last';
+        }
+        if (isset($link['href']) && ($link['href'] == $_GET['q'] || ($link['href'] == '<front>' && drupal_is_front_page()))
+             && (empty($link['language']) || $link['language']->language == $language->language)) {
+          $class .= ' active';
+        }
+        $output .= '<li' . drupal_attributes(array('class' => $class)) . '>';
+
+        if (isset($link['href'])) {
+          // Pass in $link as $options, they share the same keys.
+          $output .= l($link['title'], $link['href'], $link);
+        }
+        else if (!empty($link['title'])) {
+          // Some links are actually not links, but we wrap these in <span> for adding title and class attributes
+          if (empty($link['html'])) {
+            $link['title'] = check_plain($link['title']);
+          }
+          $span_attributes = '';
+          if (isset($link['attributes'])) {
+            $span_attributes = drupal_attributes($link['attributes']);
+          }
+          $output .= '<span' . $span_attributes . '>' . $link['title'] . '</span>';
+        }
+
+        $i++;
+        $output .= "</li>\n";
+      } 
+
+    }
+
+    $output .= '</ul>';
+  }
 
   return $output;
 }
