@@ -67,6 +67,7 @@ function tilers_wishlist_add_to_cart_form_submit($form, &$form_state) {
         
         $_SESSION['outstock_nids'] = $arr_nids;
         $node = node_load($form_state['values']['nid']);
+        uc_cart_add_item($node->nid, $qty = 1, array('offstock' => 1));
         drupal_set_message($node->title . ' added to ' . l('your order queue.', 'cart'));
         $form_state['redirect'] = drupal_goto('node/' . $form_state['values']['nid']);
     } else {

@@ -69,7 +69,10 @@ function tilers_advanced_node_render(){
 }
 
 function tilers_product_add_to_cart ($nid){
-  uc_cart_add_item($nid, 1, NULL, NULL);
+  $node = node_load($nid);
+  $stock = uc_stock_level($node->model);
+  $data = ($stock > 0) ? NULL : array('offstock' => 1);
+  uc_cart_add_item($nid, 1, $data);
   drupal_goto($_SERVER['HTTP_REFERER']);
 }
 
@@ -235,7 +238,7 @@ function tilers_products_form_alter(&$form, &$form_state, $form_id){
 
       	  // Check stock
       	  $stock = uc_stock_level($node->model);
-      	  if ($stock == 0){
+      	  if ($stock <= 0){
       	    $form['submit']['#value'] = 'We will advise delivery';
       	    $form['submit']['#attributes'] = array('class' => 'outstock-submit');
       	  }
@@ -375,8 +378,8 @@ function tilers_products_cart_item($op, &$item) {
   switch ($op) {
     case 'load':
       $stock = uc_stock_level($item->model);
-      if ($stock == 0){
-	$item->price = 0;
+      if ($stock <= 0){
+        $item->price = 0;
       }
       break;
   }

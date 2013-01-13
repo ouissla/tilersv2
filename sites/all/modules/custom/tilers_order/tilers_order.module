@@ -38,13 +38,14 @@ function tilers_order_menu() {
 }
 
 function tilers_order_form_alter(&$form, &$form_state, $form_id){
+
     global $user;
     $nid = ($form['nid']['#value']) ? $form['nid']['#value'] : '';
     if ($nid != ''){
         if ($form_id == 'uc_product_add_to_cart_form_' . $nid){
             $node = node_load($nid);
 
-            if(uc_stock_level($node->model) == 0) {
+            if(uc_stock_level($node->model) <= 0) {
                 unset($form['submit']);
                 $form['outstock_submit'] = array(
                     '#type' => 'submit',
@@ -54,7 +55,7 @@ function tilers_order_form_alter(&$form, &$form_state, $form_id){
             }
             
             // Reorder options
-            $reordered_options = $detailled_options = array();
+            /*$reordered_options = $detailled_options = array();
             if (!empty($form['attributes'])){
                 if (!empty($form['attributes'][1]['#options'])){
                     foreach ($form['attributes'][1]['#options'] as $option_id => $value){
@@ -90,7 +91,7 @@ function tilers_order_form_alter(&$form, &$form_state, $form_id){
                 if (!empty($reordered_options)){
                     $form['attributes'][1]['#options'] = $reordered_options;
                 }
-            }
+            }*/
             
         }
     }
@@ -101,9 +102,10 @@ function tilers_order_register(){
 }
 
 /**
+ * Uncomment to add a back order pane on the cart page
  * Implementation of hook_cart_pane().
  */
-function tilers_order_cart_pane($items) {
+/*function tilers_order_cart_pane($items) {
   $panes[] = array(
     'id' => 'back_order',
     'body' => tilers_order_back_order_array(),
@@ -113,14 +115,14 @@ function tilers_order_cart_pane($items) {
     'enabled' => TRUE,
   );
   return $panes;
-}
+}*/
 
 function tilers_order_back_order_array(){
     if (isset($_SESSION['outstock_nids']) && !empty($_SESSION['outstock_nids'])){
         $data = array();
         foreach ($_SESSION['outstock_nids'] as $nid){
             $node = node_load($nid);
-            $data[] = array(theme('imagecache','cart', $node->field_image_cache[0]['filepath'], $node->field_image_cache[0]['data']['alt'], $node->field_image_cache[0]['data']['title']), $node->title, $node->sell_price);
+            $data[] = array(theme('imagecache','cart', $node->field_image_cache[0]['filepath'], $node->field_image_cache[0]['data']['alt'], $node->field_image_cache[0]['data']['title']), $node->title, uc_currency_format($node->sell_price));
         }
         
         $output = '<h2>These products are out of stock</h2>';

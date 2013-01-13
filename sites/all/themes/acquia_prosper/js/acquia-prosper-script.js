@@ -166,6 +166,51 @@ $(document).ready(function(){
     $('#variations-list').change(function(){
       window.location = '/node/' + $(this).val();
     });
+
+    // Reorder items in cart review
+    if ($('fieldset#cart-pane').length > 0){
+      var table = $('fieldset#cart-pane').find('tbody');
+
+      var output = '';
+      var offstock = '';
+      var subtotal = '';
+      table.find('tr').each(function(){
+        if ($(this).find('td.price').length > 0 && $(this).find('td.price').find('span').html() != "$0.00"){
+          output += '<tr>' + $(this).html() + '</tr>';
+        } else if ($(this).find('td.subtotal').length > 0){
+          subtotal += '<tr>' + $(this).html();
+        } else {
+          offstock += '<tr class="outstock">' + $(this).html() + '</tr>';
+        }
+      });
+      table.html(output + offstock + subtotal);
+
+      var oddeven = 'odd';
+      table.find('tr').each(function(){
+        $(this).addClass(oddeven);
+        if (oddeven == 'odd'){
+          oddeven = 'even';
+        } else {
+          oddeven = 'odd';
+        }
+      });
+    }
+
+    // Reorder items in order review page
+    if ($('.order-review-table').length > 0){
+      var table = $('table.cart-review');
+      var output = '';
+      var offstock = '';
+      table.find('tr').each(function(){
+        if ($(this).find('td.price').length > 0 && $(this).find('td.price').find('span').html() != "$0.00"){
+          output += '<tr>' + $(this).html() + '</tr>';
+        } else {
+          offstock += '<tr class="outstock">' + $(this).html() + '</tr>';
+        }
+      });
+      table.html(output + offstock);
+      setOddEvenClasses(table);
+    }
     
 });
 
@@ -209,4 +254,16 @@ var switch_tab = function(){
         pane.siblings().hide();
         return false;
     });
+}
+
+var setOddEvenClasses = function(table){
+  var oddeven = 'odd';
+  table.find('tr').each(function(){
+    $(this).addClass(oddeven);
+    if (oddeven == 'odd'){
+      oddeven = 'even';
+    } else {
+      oddeven = 'odd';
+    }
+  });
 }

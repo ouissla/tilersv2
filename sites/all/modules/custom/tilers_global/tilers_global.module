@@ -86,6 +86,25 @@ function tilers_global_form_alter(&$form, $form_state, $form_id) {
         $form['items']['#columns']['image'] = array('cell' => 'Image', 'weight' => 1);
         $form['items']['#columns']['desc'] = array('cell' => 'Product', 'weight' => 2);
         $form['items']['#columns']['price'] = array('cell' => 'Price', 'weight' => 4, 'attributes' => array('class' => 'individualprice'));
+
+        // Reorder the items in the cart, outstock items last
+        $reordered_total = $reordered_offstock_items = array();
+        foreach ($form['items'] as $key => $item){
+          if (is_array($item) && isset($item['nid'])){
+            $data = unserialize($item['data']['#value']);
+            if ($data['offstock']){
+              $has_offstock = 1;
+              $item['#attributes']['class'] = 'outstock';
+              $reordered_offstock_items[] = $item;
+              unset($form['items'][$key]);
+            }
+          } else if (is_array($item) && isset($item['total']) && count($item) == 1){
+            $reordered_total[] = $item;
+            unset($form['items'][$key]);
+          }
+        }
+        $form['items'] = array_merge($form['items'], $reordered_offstock_items, $reordered_total);
+
         foreach ($form['items'] as $key => $item){
             if (is_array($item) && isset($item['nid'])){
                 $node = node_load($item['nid']['#value']);

@@ -171,14 +171,14 @@ function acquia_prosper_preprocess_node(&$variables){
             'nid'       => $var->nid
           );
 
-          usort($variables['variations'], function($a, $b) {
-              if ($a['raw_price'] == $b['raw_price']) {
-                  return 0;
-              }
-              return ($a['raw_price'] < $b['raw_price']) ? -1 : 1;
-          });
         }
         $variables['variations'] = $variations;
+        usort($variables['variations'], function($a, $b) {
+            if ($a['raw_price'] == $b['raw_price']) {
+                return 0;
+            }
+            return ($a['raw_price'] < $b['raw_price']) ? -1 : 1;
+        });
       }
     }
   }

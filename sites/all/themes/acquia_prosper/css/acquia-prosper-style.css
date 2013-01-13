@@ -864,6 +864,11 @@ ul.uc-categories a:visited {
   width: auto;
 }
 
+#cart-form-products table tr.outstock.odd,
+#cart-form-products table tr.outstock.even {
+  background: #ffa2a2;
+}
+
 #cart-form-products table th {
   font-weight: normal;
 }
@@ -927,6 +932,11 @@ ul.uc-categories a:visited {
   padding: 0 0 0 15px;
 }
 
+#uc-cart-checkout-form fieldset#cart-pane tr.outstock.odd,
+#uc-cart-checkout-form fieldset#cart-pane tr.outstock.even {
+background: #ffa2a2;
+}
+
 #uc-cart-checkout-form table td.subtotal .uc-price {
   font-weight: bold;
 }
@@ -954,6 +964,9 @@ ul.uc-categories a:visited {
 .order-review-table {
   border: none;
   width: 100%;
+}
+.order-review-table tr.outstock {
+  background: #ffa2a2;
 }
 
 .order-review-table .pane-title-row {
