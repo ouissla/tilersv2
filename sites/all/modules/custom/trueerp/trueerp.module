@@ -27,12 +27,11 @@ function trueerp_menu() {
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
-  $items['admin/user/prospect/%/send'] = array(
+  $items['usersend'] = array(
     'title'           => 'Prospects', 
     'page callback'   => 'trueerp_prospect_send',
-    'page arguments'  => array(3),
-    'access callback' => 'user_access', 
-    'access arguments' => array('administer users'),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
   );
 
   $items['getsku/%/%'] = array(
@@ -186,7 +185,7 @@ function trueerp_set($ressource, $data){
 	
     // Send the request.
     $result = drupal_http_request($request_url, $headers, $request_method, $data);
-
+dsm($result);
     if (is_object($result) && $result->code == 200){
         $data = (json_decode($result->data));
         return $data;
@@ -1189,7 +1188,8 @@ dsm($product);
 /**
  * Send a prospect to the ERP
  */
-function trueerp_prospect_send($id){
+function trueerp_prospect_send(){
+  $id = 1;
     $prospect = db_fetch_object(db_query('SELECT * FROM {tilers_prospects} WHERE id = %d', $id));
 
     require 'true.class.php';
@@ -1200,7 +1200,7 @@ function trueerp_prospect_send($id){
          'ClientName' => $prospect->given_name . ' ' . $prospect->lastname,
          'Title' => '',
          'FirstName' => $prospect->given_name,
-         'LastName' => $prospect->lastname,
+         'LastName' => 'Teller',
          'Street' => $prospect->address,
          'Street2' => '',
          'Street3' => '',
@@ -1216,6 +1216,7 @@ function trueerp_prospect_send($id){
          'SourceName' => 'Radio',
         )),
     );
+
     $json_user = json_encode($data);
     $result = trueerp_set('erpapi/TCustomer', $json_user);
 
